@@ -14,7 +14,7 @@ const ReaderDisplay = ({ word }) => {
     const fontSize = "3.5rem";
 
     return (
-        <div className="relative w-[75vw] mx-auto h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">
+        <div className="relative w-[75vw] mx-auto h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4 reader-container">
             {/* Top Guide */}
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 reader-guide z-20" />
 

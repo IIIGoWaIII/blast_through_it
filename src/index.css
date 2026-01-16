@@ -14,7 +14,11 @@ body {
 }
 
 .reader-guide {
-  @apply border-zinc-800 border-x-2;
+  @apply border-zinc-800 border-x-2 opacity-5 transition-opacity duration-300;
+}
+
+.reader-container:hover .reader-guide {
+  @apply opacity-100;
 }
 
 .accent-text {
@@ -26,6 +30,7 @@ body {
   opacity: 0;
   transform: scale(0.95);
 }
+
 .word-enter-active {
   opacity: 1;
   transform: scale(1);
