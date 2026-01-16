@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-100 min-h-screen flex items-center justify-center m-0 antialiased;
+}
+
+/* Custom premium aesthetics */
+.glass {
+  @apply bg-white/5 backdrop-blur-lg border border-white/10 shadow-2xl;
+}
+
+.reader-guide {
+  @apply border-zinc-800 border-x-2;
+}
+
+.accent-text {
+  @apply text-red-500 font-bold;
+}
+
+/* Transitions for playback */
+.word-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.word-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 50ms, transform 50ms;
+}
