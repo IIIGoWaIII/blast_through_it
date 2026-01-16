@@ -15,7 +15,7 @@ const ControlBar = ({
     return (
         <div className="w-full max-w-[75vw] mx-auto space-y-6 px-4">
             {/* Playhead Slider */}
-            <div className="relative group">
+            <div className="relative group progress-container">
                 <input
                     type="range"
                     min="0"

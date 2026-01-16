@@ -14,9 +14,9 @@ const ReaderDisplay = ({ word }) => {
     const fontSize = "3.5rem";
 
     return (
-        <div className="relative w-[75vw] mx-auto h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4 reader-container">
+        <div className="relative w-[75vw] mx-auto h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">
             {/* Top Guide */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 reader-guide z-20" />
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 z-20" />
 
             {/* Word Container */}
             <div
@@ -43,7 +43,7 @@ const ReaderDisplay = ({ word }) => {
             </div>
 
             {/* Bottom Guide */}
-            <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 reader-guide z-20" />
+            <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 z-20" />
         </div>
     );
 };

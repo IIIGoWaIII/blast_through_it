@@ -14,10 +14,14 @@ body {
 }
 
 .reader-guide {
-  @apply border-zinc-800 border-x-2 opacity-5 transition-opacity duration-300;
+  @apply bg-zinc-700 w-[2px];
 }
 
-.reader-container:hover .reader-guide {
+.progress-container {
+  @apply opacity-5 transition-opacity duration-300;
+}
+
+.progress-container:hover {
   @apply opacity-100;
 }
 
