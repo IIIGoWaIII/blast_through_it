@@ -5,8 +5,15 @@
  */
 export const parseTextToWords = (text) => {
     if (!text) return [];
-    // Split by whitespace but keep punctuation attached to words
-    return text.trim().split(/\s+/);
+
+    // Replace m-dashes with spaces (ignore them)
+    // Replace hyphens with hyphen + space (split after hyphen)
+    const processedText = text
+        .replace(/—/g, ' ')
+        .replace(/-/g, '- ');
+
+    // Split by whitespace and filter out empty strings
+    return processedText.trim().split(/\s+/).filter(word => word.length > 0);
 };
 
 /**
