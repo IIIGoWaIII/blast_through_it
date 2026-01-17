@@ -11,12 +11,13 @@ const ReaderDisplay = ({ word }) => {
     const { pre, orp, post } = splitWordAtOrp(word);
 
     // Reduced font size by 50% per user request
-    const fontSize = "3.5rem";
+    // Responsive font size using clamp, reduced by 25% for mobile per user request
+    const fontSize = "clamp(1.125rem, 6vw, 3.5rem)";
 
     return (
-        <div className="relative w-[75vw] mx-auto h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">
+        <div className="relative w-full max-w-[95vw] md:max-w-[75vw] mx-auto h-64 md:h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">
             {/* Top Guide */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 z-20" />
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-8 md:h-12 bg-zinc-700 z-20" />
 
             {/* Word Container */}
             <div
@@ -43,7 +44,7 @@ const ReaderDisplay = ({ word }) => {
             </div>
 
             {/* Bottom Guide */}
-            <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[2px] h-12 bg-zinc-700 z-20" />
+            <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[2px] h-8 md:h-12 bg-zinc-700 z-20" />
         </div>
     );
 };

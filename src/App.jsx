@@ -102,13 +102,13 @@ function App() {
         <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20 blur-[120px] rounded-full" />
       </div>
 
-      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-screen py-12">
+      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-screen py-6 md:py-12 px-4">
         {mode === 'input' ? (
           <InputArea onTextSubmit={handleTextSubmit} />
         ) : (
           <div className="w-full flex flex-col items-center space-y-12 animate-in fade-in zoom-in-95 duration-500">
             {/* Header / Back button */}
-            <div className="absolute top-8 left-8">
+            <div className="absolute top-4 left-4 md:top-8 md:left-8">
               <button
                 onClick={() => setMode('input')}
                 className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group"
@@ -153,7 +153,7 @@ function App() {
 
       {/* Shortcuts Toast/Hint */}
       {mode === 'reader' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-4 text-[10px] uppercase tracking-widest text-zinc-500 pointer-events-none transition-opacity hover:opacity-100 opacity-40">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 hidden lg:flex gap-4 text-[10px] uppercase tracking-widest text-zinc-500 pointer-events-none transition-opacity hover:opacity-100 opacity-40">
           <span>[Space] Play/Pause</span>
           <span>[D] Faster</span>
           <span>[S] Slower</span>
