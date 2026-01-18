@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, RotateCcw, FastForward, Rewind } from 'lucide-react';
+import { Play, Pause, RotateCcw, FastForward, Rewind, Plus, Minus } from 'lucide-react';
 
 const ControlBar = ({
     isPlaying,
@@ -58,10 +58,26 @@ const ControlBar = ({
                         <FastForward size={24} className="md:w-5 md:h-5" fill="currentColor" />
                     </button>
 
-                    <div className="flex flex-col ml-2 md:ml-0">
-                        <span className="text-2xl md:text-3xl font-bold tracking-tighter italic text-zinc-300">
+                    <div className="flex items-center gap-3 ml-2 md:ml-0">
+                        <button
+                            onClick={() => onWpmChange(Math.max(wpm - 10, 50))}
+                            className="flex md:hidden w-10 h-10 rounded-full bg-zinc-800 items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-colors"
+                            aria-label="Decrease WPM"
+                        >
+                            <Minus size={20} />
+                        </button>
+                        
+                        <span className="text-2xl md:text-3xl font-bold tracking-tighter italic text-zinc-300 min-w-[3ch] text-center">
                             {wpm} <span className="text-xs md:text-sm not-italic opacity-50 uppercase tracking-widest ml-1">wpm</span>
                         </span>
+
+                        <button
+                            onClick={() => onWpmChange(Math.min(wpm + 10, 1200))}
+                            className="flex md:hidden w-10 h-10 rounded-full bg-zinc-800 items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-colors"
+                            aria-label="Increase WPM"
+                        >
+                            <Plus size={20} />
+                        </button>
                     </div>
                 </div>
 
@@ -73,8 +89,8 @@ const ControlBar = ({
                     </div>
                     <input
                         type="range"
-                        min="100"
-                        max="1000"
+                        min="50"
+                        max="1200"
                         step="10"
                         value={wpm}
                         onChange={(e) => onWpmChange(parseInt(e.target.value))}

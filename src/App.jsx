@@ -52,10 +52,10 @@ function App() {
           setIsPlaying(prev => !prev);
           break;
         case 'd': // Faster
-          setWpm(prev => Math.min(prev + 25, 1200));
+          setWpm(prev => Math.min(prev + 10, 1200));
           break;
         case 's': // Slower
-          setWpm(prev => Math.max(prev - 25, 50));
+          setWpm(prev => Math.max(prev - 10, 50));
           break;
         case 'r': // Reset
           setCurrentIndex(0);
@@ -70,10 +70,10 @@ function App() {
           setIsPlaying(false);
           break;
         case 'arrowup':
-          setWpm(prev => Math.min(prev + 25, 1200));
+          setWpm(prev => Math.min(prev + 10, 1200));
           break;
         case 'arrowdown':
-          setWpm(prev => Math.max(prev - 25, 50));
+          setWpm(prev => Math.max(prev - 10, 50));
           break;
         case 'escape':
           if (mode === 'reader') setMode('input');
