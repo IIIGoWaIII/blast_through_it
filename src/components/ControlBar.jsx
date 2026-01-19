@@ -58,25 +58,37 @@ const ControlBar = ({
                         <FastForward size={24} className="md:w-5 md:h-5" fill="currentColor" />
                     </button>
 
-                    <div className="flex items-center gap-3 ml-2 md:ml-0">
-                        <button
-                            onClick={() => onWpmChange(Math.max(wpm - 10, 50))}
-                            className="flex md:hidden w-10 h-10 rounded-full bg-zinc-800 items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-colors"
-                            aria-label="Decrease WPM"
-                        >
-                            <Minus size={20} />
-                        </button>
-                        
+                    <div className="hidden md:flex items-center gap-3">
                         <span className="text-2xl md:text-3xl font-bold tracking-tighter italic text-zinc-300 min-w-[3ch] text-center">
                             {wpm} <span className="text-xs md:text-sm not-italic opacity-50 uppercase tracking-widest ml-1">wpm</span>
                         </span>
+                    </div>
+                </div>
+
+                {/* Mobile WPM Controls */}
+                <div className="flex md:hidden flex-col items-center gap-6 order-3 w-full border-t border-white/5 pt-8">
+                    <div className="flex items-center justify-between w-full px-4">
+                        <button
+                            onClick={() => onWpmChange(Math.max(wpm - 10, 50))}
+                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all shadow-lg active:scale-90"
+                            aria-label="Decrease WPM"
+                        >
+                            <Minus size={48} strokeWidth={3} />
+                        </button>
+
+                        <div className="flex flex-col items-center">
+                            <span className="text-6xl font-black tracking-tighter italic text-white drop-shadow-2xl">
+                                {wpm}
+                            </span>
+                            <span className="text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Words Per Minute</span>
+                        </div>
 
                         <button
                             onClick={() => onWpmChange(Math.min(wpm + 10, 1200))}
-                            className="flex md:hidden w-10 h-10 rounded-full bg-zinc-800 items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-colors"
+                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all shadow-lg active:scale-90"
                             aria-label="Increase WPM"
                         >
-                            <Plus size={20} />
+                            <Plus size={48} strokeWidth={3} />
                         </button>
                     </div>
                 </div>
