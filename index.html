@@ -5,9 +5,70 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>fast_text_reader</title>
+    <style>
+      #loading-bar-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: #18181b;
+        z-index: 9999;
+      }
+      #loading-bar {
+        height: 100%;
+        width: 0%;
+        background: #dc2626;
+        transition: width 0.2s ease-out;
+      }
+    </style>
   </head>
   <body>
+    <div id="loading-bar-container">
+      <div id="loading-bar"></div>
+    </div>
     <div id="root"></div>
+    <script>
+      (function() {
+        var bar = document.getElementById('loading-bar');
+        var container = document.getElementById('loading-bar-container');
+        var progress = 0;
+        var loaded = {};
+
+        function updateBar() {
+          progress = (loaded.js ? 30 : 0) + (loaded.react ? 40 : 0) + (loaded.complete ? 30 : 0);
+          bar.style.width = progress + '%';
+        }
+
+        function done() {
+          loaded.complete = true;
+          updateBar();
+          setTimeout(function() {
+            container.style.opacity = '0';
+            container.style.transition = 'opacity 0.3s ease-out';
+            setTimeout(function() { container.remove(); }, 300);
+          }, 100);
+        }
+
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+          (function(script) {
+            if (script.type === 'module' && script.src) {
+              var img = new Image();
+              img.onload = function() { loaded.js = true; updateBar(); };
+              img.onerror = function() { loaded.js = true; updateBar(); };
+              img.src = script.src;
+            }
+          })(scripts[i]);
+        }
+
+        window.addEventListener('load', function() {
+          loaded.react = true;
+          updateBar();
+          setTimeout(done, 200);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
