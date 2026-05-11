@@ -32,40 +32,78 @@
       (function() {
         var bar = document.getElementById('loading-bar');
         var container = document.getElementById('loading-bar-container');
-        var progress = 0;
-        var loaded = {};
+
+        var expectedResources = [];
+        var loadedResources = {};
+        var checkComplete = false;
+
+        function getResources() {
+          var entries = performance.getEntriesByType('resource');
+          var jsFiles = [];
+          for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (entry.name.indexOf('.js') !== -1 || entry.name.indexOf('.css') !== -1) {
+              if (!loadedResources[entry.name]) {
+                jsFiles.push(entry.name);
+              }
+            }
+          }
+          return jsFiles;
+        }
 
         function updateBar() {
-          progress = (loaded.js ? 30 : 0) + (loaded.react ? 40 : 0) + (loaded.complete ? 30 : 0);
-          bar.style.width = progress + '%';
-        }
-
-        function done() {
-          loaded.complete = true;
-          updateBar();
-          setTimeout(function() {
-            container.style.opacity = '0';
-            container.style.transition = 'opacity 0.3s ease-out';
-            setTimeout(function() { container.remove(); }, 300);
-          }, 100);
-        }
-
-        var scripts = document.getElementsByTagName('script');
-        for (var i = 0; i < scripts.length; i++) {
-          (function(script) {
-            if (script.type === 'module' && script.src) {
-              var img = new Image();
-              img.onload = function() { loaded.js = true; updateBar(); };
-              img.onerror = function() { loaded.js = true; updateBar(); };
-              img.src = script.src;
+          var entries = performance.getEntriesByType('resource');
+          var totalSize = 0;
+          var loadedSize = 0;
+          for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (entry.name.indexOf('.js') !== -1 || entry.name.indexOf('.css') !== -1) {
+              totalSize += entry.transferSize || entry.decodedBodySize || 0;
+              if (entry.duration > 0) {
+                loadedSize += entry.transferSize || entry.decodedBodySize || 0;
+              }
             }
-          })(scripts[i]);
+          }
+          if (checkComplete) {
+            var existing = performance.getEntriesByType('navigation');
+            if (existing.length > 0 && existing[0].loadEventEnd > 0) {
+              bar.style.width = '100%';
+              setTimeout(function() {
+                container.style.opacity = '0';
+                container.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(function() { container.remove(); }, 300);
+              }, 100);
+              return;
+            }
+          }
+          if (totalSize > 0) {
+            var pct = Math.min((loadedSize / totalSize) * 90, 90);
+            bar.style.width = pct + '%';
+          }
         }
+
+        function tick() {
+          updateBar();
+          if (!checkComplete) {
+            requestAnimationFrame(tick);
+          }
+        }
+
+        requestAnimationFrame(tick);
 
         window.addEventListener('load', function() {
-          loaded.react = true;
-          updateBar();
-          setTimeout(done, 200);
+          checkComplete = true;
+          setTimeout(function() {
+            updateBar();
+            setTimeout(function() {
+              bar.style.width = '100%';
+              setTimeout(function() {
+                container.style.opacity = '0';
+                container.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(function() { container.remove(); }, 300);
+              }, 200);
+            }, 100);
+          }, 300);
         });
       })();
     </script>
