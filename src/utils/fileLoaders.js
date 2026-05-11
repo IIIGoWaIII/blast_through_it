@@ -1,17 +1,12 @@
-import * as pdfjs from 'pdfjs-dist';
-import mammoth from 'mammoth';
-
-// Set up pdfjs worker
-// In a real Vite project, you might need to point to the worker file in node_modules
-// or use a CDN version for simplicity in this environment.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-
 /**
  * Extracts text from a PDF file.
  * @param {File} file 
  * @returns {Promise<string>}
  */
 export const extractTextFromPDF = async (file) => {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+    
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
@@ -32,6 +27,7 @@ export const extractTextFromPDF = async (file) => {
  * @returns {Promise<string>}
  */
 export const extractTextFromDOCX = async (file) => {
+    const mammoth = await import('mammoth');
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value;
