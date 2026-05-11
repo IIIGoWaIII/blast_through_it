@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>fast_text_reader</title>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
       #loading-bar-container {
         position: fixed;
         top: 0;
@@ -17,28 +16,23 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: #09090b;
+        background: #18181b;
         z-index: 9999;
         gap: 16px;
       }
       #loading-text {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         font-size: 14px;
         font-weight: 500;
         color: #a1a1aa;
         letter-spacing: 0.05em;
         text-transform: uppercase;
       }
-      #loading-bar-wrapper {
-        width: 100%;
-        max-width: 280px;
-        padding: 0 20px;
-        box-sizing: border-box;
-      }
       #loading-bar-track {
         width: 100%;
+        max-width: 280px;
         height: 6px;
-        background: transparent;
+        background: #27272a;
         border: 1px solid #3f3f46;
         border-radius: 4px;
         padding: 2px;
@@ -46,7 +40,7 @@
       }
       #loading-bar {
         height: 100%;
-        width: 0%;
+        width: 5%;
         background: #dc2626;
         border-radius: 2px;
         transition: width 0.15s ease-out;
@@ -56,10 +50,8 @@
   <body>
     <div id="loading-bar-container">
       <div id="loading-text">Loading...</div>
-      <div id="loading-bar-wrapper">
-        <div id="loading-bar-track">
-          <div id="loading-bar"></div>
-        </div>
+      <div id="loading-bar-track">
+        <div id="loading-bar"></div>
       </div>
     </div>
     <div id="root"></div>
@@ -69,25 +61,18 @@
         var container = document.getElementById('loading-bar-container');
         var loadingText = document.getElementById('loading-text');
 
-        var expectedResources = [];
-        var loadedResources = {};
         var checkComplete = false;
-
-        function getResources() {
-          var entries = performance.getEntriesByType('resource');
-          var jsFiles = [];
-          for (var i = 0; i < entries.length; i++) {
-            var entry = entries[i];
-            if (entry.name.indexOf('.js') !== -1 || entry.name.indexOf('.css') !== -1) {
-              if (!loadedResources[entry.name]) {
-                jsFiles.push(entry.name);
-              }
-            }
-          }
-          return jsFiles;
-        }
+        var hasRealData = false;
+        var fallbackMode = false;
+        var fallbackProgress = 5;
 
         function updateBar() {
+          if (fallbackMode) {
+            fallbackProgress = Math.min(fallbackProgress + 1.5, 90);
+            bar.style.width = fallbackProgress + '%';
+            return;
+          }
+
           var entries = performance.getEntriesByType('resource');
           var totalSize = 0;
           var loadedSize = 0;
@@ -100,6 +85,13 @@
               }
             }
           }
+
+          if (totalSize > 0) {
+            hasRealData = true;
+            var pct = Math.min((loadedSize / totalSize) * 90, 90);
+            bar.style.width = pct + '%';
+          }
+
           if (checkComplete) {
             var existing = performance.getEntriesByType('navigation');
             if (existing.length > 0 && existing[0].loadEventEnd > 0) {
@@ -113,10 +105,6 @@
               return;
             }
           }
-          if (totalSize > 0) {
-            var pct = Math.min((loadedSize / totalSize) * 90, 90);
-            bar.style.width = pct + '%';
-          }
         }
 
         function tick() {
@@ -127,6 +115,12 @@
         }
 
         requestAnimationFrame(tick);
+
+        setTimeout(function() {
+          if (!hasRealData) {
+            fallbackMode = true;
+          }
+        }, 500);
 
         window.addEventListener('load', function() {
           checkComplete = true;
@@ -139,7 +133,7 @@
                 container.style.opacity = '0';
                 container.style.transition = 'opacity 0.3s ease-out';
                 setTimeout(function() { container.remove(); }, 300);
-              }, 200);
+              }, 1000);
             }, 100);
           }, 300);
         });
