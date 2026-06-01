@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Upload, FileText, X } from 'lucide-react';
 import { loadFileContent } from '../utils/fileLoaders';
+import { shouldSimplify } from '../utils/device';
 
 const InputArea = ({ onTextSubmit }) => {
     const [text, setText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const simplified = shouldSimplify();
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
@@ -23,7 +25,7 @@ const InputArea = ({ onTextSubmit }) => {
     };
 
     return (
-        <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto p-4 md:p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className={`w-full max-w-[95vw] md:max-w-[75vw] mx-auto p-4 md:p-6 space-y-6 ${simplified ? '' : 'animate-in fade-in slide-in-from-bottom-4 duration-700'}`}>
             <div className="glass rounded-2xl md:rounded-3xl p-6 md:p-8 space-y-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl md:text-2xl font-bold tracking-tight">Source Material</h2>
@@ -59,7 +61,7 @@ const InputArea = ({ onTextSubmit }) => {
                 <button
                     onClick={() => onTextSubmit(text)}
                     disabled={!text.trim()}
-                    className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all shadow-lg active:scale-[0.98]"
+                    className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
                 >
                     Start Reading
                 </button>

@@ -4,8 +4,11 @@ import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
 import { parseTextToWords } from './utils/textParser';
 import { ChevronLeft } from 'lucide-react';
+import { shouldSimplify } from './utils/device';
 
 function App() {
+  const simplified = shouldSimplify();
+
   const [mode, setMode] = useState('input'); // 'input' or 'reader'
   const [text, setText] = useState('');
   const [words, setWords] = useState([]);
@@ -94,19 +97,24 @@ function App() {
 
   const currentProgress = words.length > 0 ? (currentIndex / (words.length - 1)) * 100 : 0;
 
-  return (
-    <div className="min-h-screen w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
-      {/* Background patterns */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20 blur-[120px] rounded-full" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20 blur-[120px] rounded-full" />
-      </div>
+  const bgBlur = simplified ? '' : 'blur-[120px]';
+  const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
 
-      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-screen py-6 md:py-12 px-4">
+  return (
+    <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
+      {/* Background patterns */}
+      {!simplified && (
+        <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+          <div className={`absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20 ${bgBlur} rounded-full`} />
+          <div className={`absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20 ${bgBlur} rounded-full`} />
+        </div>
+      )}
+
+      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-6 md:py-12 px-4">
         {mode === 'input' ? (
           <InputArea onTextSubmit={handleTextSubmit} />
         ) : (
-          <div className="w-full flex flex-col items-center space-y-12 animate-in fade-in zoom-in-95 duration-500">
+          <div className={`w-full flex flex-col items-center space-y-12 ${animClass}`}>
             {/* Header / Back button */}
             <div className="absolute top-4 left-4 md:top-8 md:left-8">
               <button

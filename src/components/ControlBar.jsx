@@ -46,7 +46,7 @@ const ControlBar = ({
 
                     <button
                         onClick={onTogglePlay}
-                        className="w-16 h-16 md:w-14 md:h-14 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl"
+                        className="w-16 h-16 md:w-14 md:h-14 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md"
                     >
                         {isPlaying ? <Pause size={32} className="md:w-7 md:h-7" fill="currentColor" /> : <Play size={32} className="md:w-7 md:h-7 translate-x-0.5" fill="currentColor" />}
                     </button>
@@ -70,14 +70,14 @@ const ControlBar = ({
                     <div className="flex items-center justify-between w-full px-4">
                         <button
                             onClick={() => onWpmChange(Math.max(wpm - 10, 50))}
-                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all shadow-lg active:scale-90"
+                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
                             aria-label="Decrease WPM"
                         >
                             <Minus size={48} strokeWidth={3} />
                         </button>
 
                         <div className="flex flex-col items-center">
-                            <span className="text-6xl font-black tracking-tighter italic text-white drop-shadow-2xl">
+                            <span className="text-6xl font-black tracking-tighter italic text-white">
                                 {wpm}
                             </span>
                             <span className="text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Words Per Minute</span>
@@ -85,7 +85,7 @@ const ControlBar = ({
 
                         <button
                             onClick={() => onWpmChange(Math.min(wpm + 10, 1200))}
-                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all shadow-lg active:scale-90"
+                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
                             aria-label="Increase WPM"
                         >
                             <Plus size={48} strokeWidth={3} />
