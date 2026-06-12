@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
-import { parseTextToWords } from './utils/textParser';
+import { parseTextToWords, getPauseForWord } from './utils/textParser';
 import { ChevronLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
@@ -32,7 +32,7 @@ function App() {
   // Playback Logic
   useEffect(() => {
     if (isPlaying && currentIndex < words.length - 1) {
-      const delay = (60 / wpm) * 1000;
+      const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex]);
       timerRef.current = setTimeout(() => {
         setCurrentIndex(prev => prev + 1);
       }, delay);

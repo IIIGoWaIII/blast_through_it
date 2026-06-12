@@ -29,6 +29,27 @@ export const getOrpIndex = (word) => {
 };
 
 /**
+ * Returns extra pause in ms for trailing punctuation.
+ * . ; ! ? = 500ms each, , : = 250ms each. Multiple stack.
+ * @param {string} word
+ * @returns {number}
+ */
+export const getPauseForWord = (word) => {
+    let pause = 0;
+    const match = word.match(/[.;:!,]+$/);
+    if (match) {
+        for (const char of match[0]) {
+            if (char === '.' || char === ';' || char === '!' || char === '?') {
+                pause += 500;
+            } else {
+                pause += 250;
+            }
+        }
+    }
+    return pause;
+};
+
+/**
  * Splits a word into three parts: pre-ORP, ORP, and post-ORP.
  * @param {string} word 
  * @returns {{pre: string, orp: string, post: string}}
