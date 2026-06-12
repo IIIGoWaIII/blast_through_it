@@ -36,7 +36,10 @@ export const getOrpIndex = (word) => {
  */
 export const getPauseForWord = (word) => {
     let pause = 0;
-    const match = word.match(/[.;:!,]+$/);
+
+    if (word.startsWith('(')) pause += 250;
+
+    const match = word.match(/[.;:!,)]+$/);
     if (match) {
         for (const char of match[0]) {
             if (char === '.' || char === ';' || char === '!' || char === '?') {
