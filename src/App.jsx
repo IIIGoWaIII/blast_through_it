@@ -110,14 +110,19 @@ function App() {
   return (
     <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
       {/* Background patterns */}
-      {(!simplified || nightMode) && (
-        <div
-          className={`fixed inset-0 overflow-hidden pointer-events-none transition-opacity duration-500 ${nightMode ? `opacity-100 z-20` : 'opacity-20'}`}
-          style={nightMode ? { maskImage: 'radial-gradient(ellipse 35% 15% at 50% 50%, transparent 100%, black 100%)' } : undefined}
-        >
-          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20'} ${nightMode ? '' : bgBlur} rounded-full`} />
-          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20'} ${nightMode ? '' : bgBlur} rounded-full`} />
+      {!simplified && (
+        <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+          <div className={`absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20 ${bgBlur} rounded-full`} />
+          <div className={`absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20 ${bgBlur} rounded-full`} />
         </div>
+      )}
+
+      {/* Night mode overlay */}
+      {nightMode && (
+        <div
+          className="fixed inset-0 z-20 pointer-events-none bg-black/50"
+          style={{ maskImage: 'radial-gradient(ellipse 35% 15% at 50% 50%, transparent 100%, black 100%)' }}
+        />
       )}
 
       {/* Night mode toggle — reader mode only */}
