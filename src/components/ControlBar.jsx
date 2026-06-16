@@ -33,8 +33,8 @@ const ControlBar = ({
     return (
         <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto space-y-6 md:space-y-8 px-4">
             {/* Playhead Slider + Jump Input */}
-            <div className="flex items-center gap-3">
-                <div className="relative group progress-container flex-1">
+            <div className="flex items-center gap-3 progress-container">
+                <div className="relative group flex-1">
                     <input
                         type="range"
                         min="0"
