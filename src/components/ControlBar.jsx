@@ -11,7 +11,8 @@ const ControlBar = ({
     remainingTime,
     onReset,
     onPrev,
-    onNext
+    onNext,
+    nightMode
 }) => {
     return (
         <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto space-y-6 md:space-y-8 px-4">
@@ -27,11 +28,13 @@ const ControlBar = ({
                     className="w-full h-2 md:h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600 transition-all md:group-hover:h-2"
                 />
             </div>
-            <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 text-center">
-                {remainingTime}
-            </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-0">
+            <div className={`space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'max-md:opacity-5' : ''}`}>
+                <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 text-center">
+                    {remainingTime}
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-0">
                 {/* Playback Controls */}
                 <div className="flex items-center gap-4 md:gap-6 order-2 md:order-1">
                     <button
@@ -113,6 +116,7 @@ const ControlBar = ({
                         className="w-full h-2 md:h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-400"
                     />
                 </div>
+            </div>
             </div>
         </div>
     );

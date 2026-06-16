@@ -180,10 +180,11 @@ function App() {
                 setCurrentIndex(prev => Math.min(words.length - 1, prev + 1));
                 setIsPlaying(false);
               }}
+              nightMode={nightMode}
             />
 
             {/* Progress Stats */}
-            <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600">
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 transition-opacity duration-300 ${nightMode ? 'max-md:opacity-5' : ''}`}>
               Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}% Complete • {totalTime}
             </div>
           </div>
