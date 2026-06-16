@@ -3,7 +3,7 @@ import ReaderDisplay from './components/ReaderDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
 import { parseTextToWords, getPauseForWord, calculateReadingTime, formatTime } from './utils/textParser';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Moon } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
 function App() {
@@ -15,6 +15,7 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [wpm, setWpm] = useState(300);
+  const [nightMode, setNightMode] = useState(false);
 
   const timerRef = useRef(null);
 
@@ -59,6 +60,9 @@ function App() {
           break;
         case 's': // Slower
           setWpm(prev => Math.max(prev - 10, 50));
+          break;
+        case 'n': // Night mode
+          setNightMode(prev => !prev);
           break;
         case 'r': // Reset
           setCurrentIndex(0);
@@ -107,11 +111,24 @@ function App() {
     <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
       {/* Background patterns */}
       {!simplified && (
-        <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-          <div className={`absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20 ${bgBlur} rounded-full`} />
-          <div className={`absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20 ${bgBlur} rounded-full`} />
+        <div className={`fixed inset-0 overflow-hidden pointer-events-none transition-opacity duration-500 ${nightMode ? 'opacity-100' : 'opacity-20'}`}>
+          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20'} ${bgBlur} rounded-full`} />
+          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20'} ${bgBlur} rounded-full`} />
         </div>
       )}
+
+      {/* Night mode toggle */}
+      <button
+        onClick={() => setNightMode(prev => !prev)}
+        className={`fixed top-4 right-4 z-40 w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
+          nightMode
+            ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
+            : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
+        }`}
+        aria-label="Toggle night reading mode"
+      >
+        <Moon size={22} fill={nightMode ? 'currentColor' : 'none'} />
+      </button>
 
       <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-6 md:py-12 px-4">
         {mode === 'input' ? (
@@ -169,6 +186,7 @@ function App() {
           <span>[Space] Play/Pause</span>
           <span>[D] Faster</span>
           <span>[S] Slower</span>
+          <span>[N] Night Mode</span>
           <span>[R] Reset</span>
           <span>[Esc] Editor</span>
         </div>
