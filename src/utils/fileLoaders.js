@@ -62,9 +62,25 @@ export const parseEpubChapters = async (file) => {
     const title = metadata.title || file.name.replace(/\.epub$/i, '');
     const author = metadata.creator || '';
 
+    const tocLabelByHref = {};
+    function flattenToc(items) {
+        for (const item of items) {
+            if (item.href) {
+                const baseHref = item.href.split('#')[0];
+                if (!(baseHref in tocLabelByHref)) {
+                    tocLabelByHref[baseHref] = item.label;
+                }
+            }
+            if (item.subitems?.length) flattenToc(item.subitems);
+        }
+    }
+    if (book.navigation?.toc) flattenToc(book.navigation.toc);
+
     const chapters = [];
     book.spine.each((section) => {
-        const label = section.idref || section.href || `Chapter ${chapters.length + 1}`;
+        const label = tocLabelByHref[section.href]
+                   || section.idref
+                   || `Chapter ${chapters.length + 1}`;
         chapters.push({
             index: chapters.length,
             label,
