@@ -47,8 +47,9 @@ function App() {
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger shortcuts if user is typing in the textarea
-      if (mode === 'input' && document.activeElement.tagName === 'TEXTAREA') return;
+      // Don't trigger shortcuts if user is typing in an input field
+      const tag = document.activeElement.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
 
       switch (e.key.toLowerCase()) {
         case ' ':
@@ -97,6 +98,12 @@ function App() {
   const handleProgressChange = (val) => {
     const newIndex = Math.floor((val / 100) * (words.length - 1));
     setCurrentIndex(newIndex);
+  };
+
+  const handleJumpToWord = (wordNumber) => {
+    const idx = Math.max(0, Math.min(words.length - 1, wordNumber - 1));
+    setCurrentIndex(idx);
+    setIsPlaying(false);
   };
 
   const currentProgress = words.length > 0 ? (currentIndex / (words.length - 1)) * 100 : 0;
@@ -181,6 +188,9 @@ function App() {
                 setIsPlaying(false);
               }}
               nightMode={nightMode}
+              totalWords={words.length}
+              currentIndex={currentIndex}
+              onJumpToWord={handleJumpToWord}
             />
 
             {/* Progress Stats */}

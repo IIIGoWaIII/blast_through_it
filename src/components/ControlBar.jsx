@@ -12,21 +12,53 @@ const ControlBar = ({
     onReset,
     onPrev,
     onNext,
-    nightMode
+    nightMode,
+    totalWords,
+    currentIndex,
+    onJumpToWord
 }) => {
+    const [jumpValue, setJumpValue] = React.useState('');
+
+    const handleJumpSubmit = (e) => {
+        if (e.key === 'Enter') {
+            const num = parseInt(jumpValue, 10);
+            if (!isNaN(num) && num >= 1 && num <= totalWords) {
+                onJumpToWord(num);
+                setJumpValue('');
+                e.target.blur();
+            }
+        }
+    };
+
     return (
         <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto space-y-6 md:space-y-8 px-4">
-            {/* Playhead Slider */}
-            <div className="relative group progress-container">
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={progress}
-                    onChange={(e) => onProgressChange(parseFloat(e.target.value))}
-                    className="w-full h-2 md:h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600 transition-all md:group-hover:h-2"
-                />
+            {/* Playhead Slider + Jump Input */}
+            <div className="flex items-center gap-3">
+                <div className="relative group progress-container flex-1">
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={progress}
+                        onChange={(e) => onProgressChange(parseFloat(e.target.value))}
+                        className="w-full h-2 md:h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600 transition-all md:group-hover:h-2"
+                    />
+                </div>
+                <div className="flex items-center gap-1.5 text-zinc-500 text-xs shrink-0">
+                    <span className="text-zinc-600 hidden sm:inline">Word</span>
+                    <input
+                        type="number"
+                        min={1}
+                        max={totalWords}
+                        value={jumpValue}
+                        onChange={(e) => setJumpValue(e.target.value)}
+                        onKeyDown={handleJumpSubmit}
+                        placeholder={`${currentIndex + 1}`}
+                        className="w-16 md:w-14 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-center text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-zinc-600">/ {totalWords}</span>
+                </div>
             </div>
 
             <div className={`space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'max-md:opacity-5' : ''}`}>
