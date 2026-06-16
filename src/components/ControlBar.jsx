@@ -8,6 +8,7 @@ const ControlBar = ({
     onWpmChange,
     progress,
     onProgressChange,
+    remainingTime,
     onReset,
     onPrev,
     onNext
@@ -25,6 +26,9 @@ const ControlBar = ({
                     onChange={(e) => onProgressChange(parseFloat(e.target.value))}
                     className="w-full h-2 md:h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600 transition-all md:group-hover:h-2"
                 />
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 text-center">
+                {remainingTime}
             </div>
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-0">

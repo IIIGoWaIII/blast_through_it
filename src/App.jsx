@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
-import { parseTextToWords, getPauseForWord } from './utils/textParser';
+import { parseTextToWords, getPauseForWord, calculateReadingTime, formatTime } from './utils/textParser';
 import { ChevronLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
@@ -97,6 +97,9 @@ function App() {
 
   const currentProgress = words.length > 0 ? (currentIndex / (words.length - 1)) * 100 : 0;
 
+  const totalTime = formatTime(calculateReadingTime(words, wpm));
+  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm));
+
   const bgBlur = simplified ? '' : 'blur-[120px]';
   const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
 
@@ -137,6 +140,7 @@ function App() {
               onWpmChange={setWpm}
               progress={currentProgress}
               onProgressChange={handleProgressChange}
+              remainingTime={remainingTime}
               onReset={() => {
                 setCurrentIndex(0);
                 setIsPlaying(false);
@@ -153,7 +157,7 @@ function App() {
 
             {/* Progress Stats */}
             <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600">
-              Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}% Complete
+              Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}% Complete • {totalTime}
             </div>
           </div>
         )}
