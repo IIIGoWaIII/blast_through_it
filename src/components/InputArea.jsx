@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
-import { loadFileContent } from '../utils/fileLoaders';
+import { Upload, X, BookOpen, CheckSquare, Square } from 'lucide-react';
+import { loadFileContent, parseEpubChapters, extractEpubChaptersText } from '../utils/fileLoaders';
 import { shouldSimplify } from '../utils/device';
 
 const InputArea = ({ onTextSubmit }) => {
@@ -8,14 +8,30 @@ const InputArea = ({ onTextSubmit }) => {
     const [isLoading, setIsLoading] = useState(false);
     const simplified = shouldSimplify();
 
+    const [epubData, setEpubData] = useState(null);
+    const [epubFile, setEpubFile] = useState(null);
+    const [selectedChapters, setSelectedChapters] = useState(new Set());
+    const [isExtracting, setIsExtracting] = useState(false);
+
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setIsLoading(true);
         try {
-            const content = await loadFileContent(file);
-            setText(content);
+            const extension = file.name.split('.').pop().toLowerCase();
+            if (extension === 'epub') {
+                const data = await parseEpubChapters(file);
+                setEpubData(data);
+                setEpubFile(file);
+                setSelectedChapters(new Set(data.chapters.map((_, i) => i)));
+                setText('');
+            } else {
+                const content = await loadFileContent(file);
+                setText(content);
+                setEpubData(null);
+                setEpubFile(null);
+            }
         } catch (error) {
             console.error('Error loading file:', error);
             alert('Failed to load file. Try copying the text manually.');
@@ -24,6 +40,48 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
+    const handleEpubSubmit = async () => {
+        if (!epubFile || selectedChapters.size === 0) return;
+        setIsExtracting(true);
+        try {
+            const text = await extractEpubChaptersText(epubFile, Array.from(selectedChapters));
+            onTextSubmit(text);
+        } catch (error) {
+            console.error('Error extracting EPUB text:', error);
+            alert('Failed to extract text from EPUB.');
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+    const toggleChapter = (index) => {
+        setSelectedChapters(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+        });
+    };
+
+    const toggleAll = () => {
+        if (!epubData) return;
+        if (selectedChapters.size === epubData.chapters.length) {
+            setSelectedChapters(new Set());
+        } else {
+            setSelectedChapters(new Set(epubData.chapters.map((_, i) => i)));
+        }
+    };
+
+    const clearEpub = () => {
+        setEpubData(null);
+        setEpubFile(null);
+        setSelectedChapters(new Set());
+    };
+
+    const totalWords = epubData
+        ? epubData.chapters.filter((_, i) => selectedChapters.has(i)).reduce((sum, c) => sum + c.wordCount, 0)
+        : 0;
+
     return (
         <div className={`w-full max-w-[95vw] md:max-w-[75vw] mx-auto p-4 md:p-6 space-y-6 ${simplified ? '' : 'animate-in fade-in slide-in-from-bottom-4 duration-700'}`}>
             <div className="glass rounded-2xl md:rounded-3xl p-6 md:p-8 space-y-6">
@@ -31,7 +89,7 @@ const InputArea = ({ onTextSubmit }) => {
                     <h2 className="text-xl md:text-2xl font-bold tracking-tight">Source Material</h2>
                     <div className="flex gap-2 md:gap-3">
                         <button
-                            onClick={() => setText('')}
+                            onClick={() => { setText(''); clearEpub(); }}
                             className="p-2 text-zinc-500 hover:text-white transition-colors"
                             title="Clear text"
                         >
@@ -43,7 +101,7 @@ const InputArea = ({ onTextSubmit }) => {
                             <input
                                 type="file"
                                 className="hidden"
-                                accept=".txt,.pdf,.docx"
+                                accept=".txt,.pdf,.docx,.epub"
                                 onChange={handleFileUpload}
                                 disabled={isLoading}
                             />
@@ -51,23 +109,90 @@ const InputArea = ({ onTextSubmit }) => {
                     </div>
                 </div>
 
-                <textarea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Paste your text here or upload a file..."
-                    className="w-full h-64 md:h-80 bg-zinc-900/50 border border-zinc-800 rounded-xl md:rounded-2xl p-4 md:p-6 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-red-600/50 focus:border-red-600/50 transition-all resize-none font-sans leading-relaxed text-sm md:text-base"
-                />
+                {epubData ? (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+                            <BookOpen size={20} className="text-red-500 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="font-bold text-zinc-200 truncate">{epubData.title}</p>
+                                {epubData.author && (
+                                    <p className="text-xs text-zinc-500 truncate">{epubData.author}</p>
+                                )}
+                            </div>
+                            <button
+                                onClick={clearEpub}
+                                className="ml-auto p-1 text-zinc-500 hover:text-white transition-colors shrink-0"
+                                title="Close EPUB"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
 
-                <button
-                    onClick={() => onTextSubmit(text)}
-                    disabled={!text.trim()}
-                    className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
-                >
-                    Start Reading
-                </button>
+                        <div className="flex items-center justify-between">
+                            <button
+                                onClick={toggleAll}
+                                className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors"
+                            >
+                                {selectedChapters.size === epubData.chapters.length ? 'Deselect All' : 'Select All'}
+                            </button>
+                            <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold">
+                                {selectedChapters.size}/{epubData.chapters.length} chapters
+                            </span>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto space-y-1 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                            {epubData.chapters.map((chapter) => (
+                                <button
+                                    key={chapter.index}
+                                    onClick={() => toggleChapter(chapter.index)}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all text-sm ${
+                                        selectedChapters.has(chapter.index)
+                                            ? 'bg-zinc-800/80 text-zinc-100'
+                                            : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                                    }`}
+                                >
+                                    {selectedChapters.has(chapter.index) ? (
+                                        <CheckSquare size={16} className="text-red-500 shrink-0" />
+                                    ) : (
+                                        <Square size={16} className="shrink-0" />
+                                    )}
+                                    <span className="truncate flex-1">{chapter.label}</span>
+                                    <span className="text-[10px] uppercase tracking-wider text-zinc-600 shrink-0">
+                                        {chapter.wordCount.toLocaleString()}w
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={handleEpubSubmit}
+                            disabled={selectedChapters.size === 0 || isExtracting}
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
+                        >
+                            {isExtracting ? 'Extracting...' : `Read Selected (${totalWords.toLocaleString()} words)`}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <textarea
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            placeholder="Paste your text here or upload a file..."
+                            className="w-full h-64 md:h-80 bg-zinc-900/50 border border-zinc-800 rounded-xl md:rounded-2xl p-4 md:p-6 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-red-600/50 focus:border-red-600/50 transition-all resize-none font-sans leading-relaxed text-sm md:text-base"
+                        />
+
+                        <button
+                            onClick={() => onTextSubmit(text)}
+                            disabled={!text.trim()}
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
+                        >
+                            Start Reading
+                        </button>
+                    </>
+                )}
 
                 <p className="text-center text-xs text-zinc-500 font-medium">
-                    Supports .txt, .pdf, and .docx files
+                    Supports .txt, .pdf, .docx, and .epub files
                 </p>
             </div>
         </div>

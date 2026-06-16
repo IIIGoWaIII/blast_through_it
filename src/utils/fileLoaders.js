@@ -48,6 +48,108 @@ export const extractTextFromTXT = async (file) => {
 };
 
 /**
+ * Parses an EPUB file and returns chapter metadata.
+ * @param {File} file
+ * @returns {Promise<{title: string, author: string, chapters: {index: number, label: string, wordCount: number}[]}>}
+ */
+export const parseEpubChapters = async (file) => {
+    const ePub = (await import('epubjs')).default;
+    const arrayBuffer = await file.arrayBuffer();
+    const book = ePub(arrayBuffer);
+    await book.ready;
+
+    const metadata = book.packaging.metadata || {};
+    const title = metadata.title || file.name.replace(/\.epub$/i, '');
+    const author = metadata.creator || '';
+
+    const chapters = [];
+    book.spine.each((section) => {
+        const label = section.idref || section.href || `Chapter ${chapters.length + 1}`;
+        chapters.push({
+            index: chapters.length,
+            label,
+            href: section.href,
+            wordCount: 0,
+        });
+    });
+
+    // Load each section to get word counts
+    for (const chapter of chapters) {
+        try {
+            const doc = await book.load(chapter.href);
+            if (doc && doc.body) {
+                const text = doc.body.textContent || '';
+                chapter.wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+            }
+        } catch {
+            chapter.wordCount = 0;
+        }
+    }
+
+    book.destroy();
+    return { title, author, chapters };
+};
+
+/**
+ * Extracts text from selected chapters of an EPUB file.
+ * @param {File} file
+ * @param {number[]} indices - Chapter indices to extract (from parseEpubChapters)
+ * @returns {Promise<string>}
+ */
+export const extractEpubChaptersText = async (file, indices) => {
+    const ePub = (await import('epubjs')).default;
+    const arrayBuffer = await file.arrayBuffer();
+    const book = ePub(arrayBuffer);
+    await book.ready;
+
+    const spineItems = [];
+    book.spine.each((section) => spineItems.push(section));
+
+    const texts = [];
+    for (const idx of indices) {
+        const section = spineItems[idx];
+        if (!section) continue;
+        try {
+            const doc = await book.load(section.href);
+            if (doc && doc.body) {
+                texts.push(doc.body.textContent || '');
+            }
+        } catch {
+            // Skip sections that fail to load
+        }
+    }
+
+    book.destroy();
+    return texts.join('\n\n');
+};
+
+/**
+ * Extracts all text from every chapter of an EPUB file.
+ * Used as fallback when loadFileContent is called directly.
+ * @param {File} file
+ * @returns {Promise<string>}
+ */
+const extractEpubFullText = async (file) => {
+    const ePub = (await import('epubjs')).default;
+    const arrayBuffer = await file.arrayBuffer();
+    const book = ePub(arrayBuffer);
+    await book.ready;
+
+    const texts = [];
+    book.spine.each((section) => {
+        const p = book.load(section.href).then((doc) => {
+            if (doc && doc.body) return doc.body.textContent || '';
+            return '';
+        }).catch(() => '');
+        texts.push(p);
+    });
+
+    const results = await Promise.all(texts);
+    book.destroy();
+    return results.join('\n\n');
+};
+
+/**
  * Universal loader based on file extension.
  * @param {File} file 
  * @returns {Promise<string>}
@@ -60,6 +162,8 @@ export const loadFileContent = async (file) => {
             return await extractTextFromPDF(file);
         case 'docx':
             return await extractTextFromDOCX(file);
+        case 'epub':
+            return await extractEpubFullText(file);
         case 'txt':
         default:
             return await extractTextFromTXT(file);
