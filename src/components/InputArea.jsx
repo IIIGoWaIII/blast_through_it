@@ -44,7 +44,8 @@ const InputArea = ({ onTextSubmit }) => {
         if (!epubFile || selectedChapters.size === 0) return;
         setIsExtracting(true);
         try {
-            const text = await extractEpubChaptersText(epubFile, Array.from(selectedChapters));
+            const selected = Array.from(selectedChapters).map(i => epubData.chapters[i]);
+            const text = await extractEpubChaptersText(epubFile, selected);
             onTextSubmit(text);
         } catch (error) {
             console.error('Error extracting EPUB text:', error);

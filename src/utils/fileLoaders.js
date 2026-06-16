@@ -78,28 +78,33 @@ export const parseEpubChapters = async (file) => {
 
     const chapters = [];
     book.spine.each((section) => {
-        const label = tocLabelByHref[section.href]
-                   || section.idref
-                   || `Chapter ${chapters.length + 1}`;
-        chapters.push({
-            index: chapters.length,
-            label,
-            href: section.href,
-            wordCount: 0,
-        });
+        const label = tocLabelByHref[section.href];
+        if (label) {
+            chapters.push({
+                index: chapters.length,
+                label,
+                hrefs: [section.href],
+                wordCount: 0,
+            });
+        } else if (chapters.length > 0) {
+            chapters[chapters.length - 1].hrefs.push(section.href);
+        }
     });
 
-    // Load each section to get word counts
     for (const chapter of chapters) {
-        try {
-            const doc = await book.load(chapter.href);
-            if (doc && doc.body) {
-                const text = doc.body.textContent || '';
-                chapter.wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+        let totalWords = 0;
+        for (const href of chapter.hrefs) {
+            try {
+                const doc = await book.load(href);
+                if (doc && doc.body) {
+                    const text = doc.body.textContent || '';
+                    totalWords += text.trim().split(/\s+/).filter(Boolean).length;
+                }
+            } catch {
+                // Skip sections that fail to load
             }
-        } catch {
-            chapter.wordCount = 0;
         }
+        chapter.wordCount = totalWords;
     }
 
     book.destroy();
@@ -112,26 +117,23 @@ export const parseEpubChapters = async (file) => {
  * @param {number[]} indices - Chapter indices to extract (from parseEpubChapters)
  * @returns {Promise<string>}
  */
-export const extractEpubChaptersText = async (file, indices) => {
+export const extractEpubChaptersText = async (file, chapters) => {
     const ePub = (await import('epubjs')).default;
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
     await book.ready;
 
-    const spineItems = [];
-    book.spine.each((section) => spineItems.push(section));
-
     const texts = [];
-    for (const idx of indices) {
-        const section = spineItems[idx];
-        if (!section) continue;
-        try {
-            const doc = await book.load(section.href);
-            if (doc && doc.body) {
-                texts.push(doc.body.textContent || '');
+    for (const chapter of chapters) {
+        for (const href of chapter.hrefs) {
+            try {
+                const doc = await book.load(href);
+                if (doc && doc.body) {
+                    texts.push(doc.body.textContent || '');
+                }
+            } catch {
+                // Skip sections that fail to load
             }
-        } catch {
-            // Skip sections that fail to load
         }
     }
 
