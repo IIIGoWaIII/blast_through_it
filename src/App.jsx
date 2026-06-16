@@ -110,25 +110,30 @@ function App() {
   return (
     <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
       {/* Background patterns */}
-      {!simplified && (
-        <div className={`fixed inset-0 overflow-hidden pointer-events-none transition-opacity duration-500 ${nightMode ? 'opacity-100' : 'opacity-20'}`}>
-          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20'} ${bgBlur} rounded-full`} />
-          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20'} ${bgBlur} rounded-full`} />
+      {(!simplified || nightMode) && (
+        <div
+          className={`fixed inset-0 overflow-hidden pointer-events-none transition-opacity duration-500 ${nightMode ? `opacity-100 z-20` : 'opacity-20'}`}
+          style={nightMode ? { maskImage: 'radial-gradient(ellipse 35% 15% at 50% 50%, transparent 100%, black 100%)' } : undefined}
+        >
+          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-top-[10%] -left-[10%] w-[40%] h-[40%] bg-red-900/20'} ${nightMode ? '' : bgBlur} rounded-full`} />
+          <div className={`absolute ${nightMode ? 'inset-0 bg-zinc-950/80' : '-bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-zinc-800/20'} ${nightMode ? '' : bgBlur} rounded-full`} />
         </div>
       )}
 
-      {/* Night mode toggle */}
-      <button
-        onClick={() => setNightMode(prev => !prev)}
-        className={`fixed top-4 right-4 z-40 w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
-          nightMode
-            ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
-            : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
-        }`}
-        aria-label="Toggle night reading mode"
-      >
-        <Moon size={22} fill={nightMode ? 'currentColor' : 'none'} />
-      </button>
+      {/* Night mode toggle — reader mode only */}
+      {mode === 'reader' && (
+        <button
+          onClick={() => setNightMode(prev => !prev)}
+          className={`fixed top-4 right-4 z-40 w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
+            nightMode
+              ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
+              : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
+          }`}
+          aria-label="Toggle night reading mode"
+        >
+          <Moon size={22} fill={nightMode ? 'currentColor' : 'none'} />
+        </button>
+      )}
 
       <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-6 md:py-12 px-4">
         {mode === 'input' ? (
