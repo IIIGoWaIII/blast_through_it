@@ -47,6 +47,80 @@ export const extractTextFromTXT = async (file) => {
     });
 };
 
+const EPUB_BLOCK_TAGS = new Set([
+    'ADDRESS',
+    'ARTICLE',
+    'ASIDE',
+    'BLOCKQUOTE',
+    'BR',
+    'DD',
+    'DIV',
+    'DL',
+    'DT',
+    'FIGCAPTION',
+    'FIGURE',
+    'FOOTER',
+    'H1',
+    'H2',
+    'H3',
+    'H4',
+    'H5',
+    'H6',
+    'HEADER',
+    'HR',
+    'LI',
+    'MAIN',
+    'NAV',
+    'OL',
+    'P',
+    'PRE',
+    'SECTION',
+    'TABLE',
+    'TD',
+    'TH',
+    'TR',
+    'UL',
+]);
+
+const appendBreak = (parts) => {
+    if (parts.length > 0 && parts[parts.length - 1] !== '\n') {
+        parts.push('\n');
+    }
+};
+
+const extractTextFromEpubBody = (body) => {
+    const parts = [];
+
+    const walk = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            parts.push(node.textContent.replace(/\s+/g, ' '));
+            return;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        const tagName = node.tagName;
+        const isBlock = EPUB_BLOCK_TAGS.has(tagName);
+
+        if (isBlock) appendBreak(parts);
+
+        for (const child of node.childNodes) {
+            walk(child);
+        }
+
+        if (isBlock) appendBreak(parts);
+    };
+
+    walk(body);
+
+    return parts
+        .join('')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n[ \t]+/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+};
+
 /**
  * Parses an EPUB file and returns chapter metadata.
  * @param {File} file
@@ -97,7 +171,7 @@ export const parseEpubChapters = async (file) => {
             try {
                 const doc = await book.load(href);
                 if (doc && doc.body) {
-                    const text = doc.body.textContent || '';
+                    const text = extractTextFromEpubBody(doc.body);
                     totalWords += text.trim().split(/\s+/).filter(Boolean).length;
                 }
             } catch {
@@ -129,7 +203,7 @@ export const extractEpubChaptersText = async (file, chapters) => {
             try {
                 const doc = await book.load(href);
                 if (doc && doc.body) {
-                    texts.push(doc.body.textContent || '');
+                    texts.push(extractTextFromEpubBody(doc.body));
                 }
             } catch {
                 // Skip sections that fail to load
@@ -156,7 +230,7 @@ const extractEpubFullText = async (file) => {
     const texts = [];
     book.spine.each((section) => {
         const p = book.load(section.href).then((doc) => {
-            if (doc && doc.body) return doc.body.textContent || '';
+            if (doc && doc.body) return extractTextFromEpubBody(doc.body);
             return '';
         }).catch(() => '');
         texts.push(p);
