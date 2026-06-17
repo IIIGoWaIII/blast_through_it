@@ -32,8 +32,9 @@ function App() {
   const [nightMode, setNightMode] = useState(false);
   const [readingMode, setReadingMode] = useState(settings.readingMode ?? 'rsvp'); // 'rsvp' or 'visualPacer'
   const [pacerStyle, setPacerStyle] = useState(settings.pacerStyle ?? 'line'); // 'line' or 'word'
+  const [wordProgress, setWordProgress] = useState({ index: 0, value: 0 });
 
-  const timerRef = useRef(null);
+  const animationRef = useRef(null);
 
   // Persist reading settings
   useEffect(() => {
@@ -53,16 +54,35 @@ function App() {
 
   // Playback Logic
   useEffect(() => {
-    if (isPlaying && currentIndex < words.length - 1) {
-      const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex], wpm);
-      timerRef.current = setTimeout(() => {
-        setCurrentIndex(prev => prev + 1);
-      }, delay);
-    } else if (currentIndex >= words.length - 1) {
-      setIsPlaying(false);
-    }
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
 
-    return () => clearTimeout(timerRef.current);
+    if (!isPlaying) return undefined;
+
+    if (currentIndex >= words.length - 1) return undefined;
+
+    const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex], wpm);
+    const start = performance.now();
+
+    const tick = (now) => {
+      const progress = (now - start) / delay;
+
+      if (progress >= 1) {
+        setCurrentIndex(prev => Math.min(words.length - 1, prev + 1));
+        if (currentIndex + 1 >= words.length - 1) {
+          setIsPlaying(false);
+        }
+        return;
+      }
+
+      setWordProgress({ index: currentIndex, value: progress });
+      animationRef.current = requestAnimationFrame(tick);
+    };
+
+    animationRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
   }, [isPlaying, currentIndex, words, wpm]);
 
   // Keyboard Shortcuts
@@ -117,7 +137,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode]);
+  }, [mode, words.length]);
 
   const handleProgressChange = (val) => {
     const newIndex = Math.floor((val / 100) * (words.length - 1));
@@ -130,7 +150,8 @@ function App() {
     setIsPlaying(false);
   };
 
-  const currentProgress = words.length > 0 ? (currentIndex / (words.length - 1)) * 100 : 0;
+  const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
+  const activeWordProgress = isPlaying && wordProgress.index === currentIndex ? wordProgress.value : 0;
 
   const totalTime = formatTime(calculateReadingTime(words, wpm));
   const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm));
@@ -229,7 +250,7 @@ function App() {
                 currentIndex={currentIndex}
                 pacerStyle={pacerStyle}
                 isPlaying={isPlaying}
-                wpm={wpm}
+                wordProgress={activeWordProgress}
               />
             )}
 

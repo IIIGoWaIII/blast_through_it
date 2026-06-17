@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { getPauseForWord } from '../utils/textParser';
+import { parseTextToWords } from '../utils/textParser';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -27,7 +27,7 @@ function cancelScrollAnimation(animationRef) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
 }
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wpm }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const [lineHighlight, setLineHighlight] = useState(null);
@@ -47,7 +47,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wpm }) 
         for (const para of paragraphs) {
             const paraLines = para.split(/\n/);
             for (const line of paraLines) {
-                const lineWords = line.trim().split(/\s+/).filter(w => w.length > 0);
+                const lineWords = parseTextToWords(line);
                 const lineData = {
                     words: lineWords.map((w) => ({ text: w, globalIndex: wordIdx++ })),
                 };
@@ -58,22 +58,6 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wpm }) 
         }
         return result;
     }, [text]);
-
-    const activeWordText = useMemo(() => {
-        for (const line of lines) {
-            for (const word of line.words) {
-                if (word.globalIndex === currentIndex) {
-                    return word.text;
-                }
-            }
-        }
-        return '';
-    }, [lines, currentIndex]);
-
-    const delay = useMemo(() => {
-        if (!activeWordText || !isPlaying) return 0;
-        return (60 / wpm) * 1000 + getPauseForWord(activeWordText, wpm);
-    }, [activeWordText, isPlaying, wpm]);
 
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
@@ -223,9 +207,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wpm }) 
                                                 {word.text}
                                                 {isCurrentWord && isPlaying && (
                                                     <span
-                                                        key={currentIndex}
-                                                        className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full pacer-underline-bar"
-                                                        style={{ '--word-delay': `${delay}ms` }}
+                                                        className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
+                                                        style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
                                                     />
                                                 )}
                                             </span>
