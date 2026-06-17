@@ -57,7 +57,7 @@ body {
 .pacer-word-highlight {
   background-color: rgba(239, 68, 68, 0.25);
   color: white;
-  font-weight: 600;
+  text-shadow: 0 0 0.6px currentColor;
 }
 
 /* Custom scrollbar for pacer container */

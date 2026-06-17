@@ -114,7 +114,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                         <div
                             key={`line-${lineIdx}`}
                             data-line-index={lineIdx}
-                            className={`relative px-2 py-1 rounded transition-all duration-150 ${
+                            className={`relative px-2 py-1 rounded transition-colors duration-150 ${
                                 isCurrentLine && pacerStyle === 'line'
                                     ? 'bg-red-500/15'
                                     : ''
@@ -129,12 +129,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                                 {line.words.map((word) => {
                                     const isCurrentWord = word.globalIndex === currentIndex;
 
+                                    const wordBaseClass = pacerStyle === 'word'
+                                        ? 'pacer-word px-0.5 rounded'
+                                        : '';
+
                                     if (pacerStyle === 'word' && isCurrentWord) {
                                         return (
                                             <span
                                                 key={word.globalIndex}
                                                 data-word-index={word.globalIndex}
-                                                className="pacer-word-highlight px-0.5 rounded"
+                                                className={`${wordBaseClass} pacer-word-highlight`}
                                             >
                                                 {word.text}{' '}
                                             </span>
@@ -146,7 +150,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                                             <span
                                                 key={word.globalIndex}
                                                 data-word-index={word.globalIndex}
-                                                className="text-zinc-500"
+                                                className={`${wordBaseClass} text-zinc-500`}
                                             >
                                                 {word.text}{' '}
                                             </span>
@@ -157,7 +161,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                                         <span
                                             key={word.globalIndex}
                                             data-word-index={word.globalIndex}
-                                            className="text-zinc-300"
+                                            className={`${wordBaseClass} text-zinc-300`}
                                         >
                                             {word.text}{' '}
                                         </span>
