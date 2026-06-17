@@ -32,6 +32,7 @@ export const getOrpIndex = (word) => {
 const SENTENCE_END_RATIO = 2.5; // . ! ? ;
 const COMMA_RATIO = 1.25;       // , : ( ) " "
 const MID_SENTENCE_RATIO = 5;   // mid-word punctuation (e.g. "said.She")
+const PARAGRAPH_RATIO = 3;      // new paragraph start
 
 /**
  * Returns extra pause in ms, scaled by WPM.
@@ -101,6 +102,33 @@ export const formatTime = (seconds) => {
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
     return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}h`;
+};
+
+/**
+ * Returns a Set of word indices that start a new paragraph.
+ * Paragraphs are split by double newlines, matching VisualPacerDisplay layout.
+ * Uses same hyphen handling as parseTextToWords to keep indices aligned.
+ * @param {string} text
+ * @param {string[]} words
+ * @returns {Set<number>}
+ */
+export const getNewParagraphIndices = (text, words) => {
+    const indices = new Set();
+    if (!text || !words.length) return indices;
+
+    const paragraphs = text.split(/\n\n+/);
+    let wordIdx = 0;
+
+    for (const para of paragraphs) {
+        if (wordIdx < words.length) {
+            indices.add(wordIdx);
+        }
+        const processedPara = para.replace(/—/g, ' ').replace(/-/g, '- ');
+        const paraWords = processedPara.trim().split(/\s+/).filter(w => w.length > 0);
+        wordIdx += paraWords.length;
+    }
+
+    return indices;
 };
 
 /**

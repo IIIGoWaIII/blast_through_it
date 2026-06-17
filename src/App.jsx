@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
 import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
-import { parseTextToWords, getPauseForWord, calculateReadingTime, formatTime } from './utils/textParser';
+import { parseTextToWords, getPauseForWord, getNewParagraphIndices, calculateReadingTime, formatTime } from './utils/textParser';
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
@@ -34,6 +34,8 @@ function App() {
   const [pacerStyle, setPacerStyle] = useState(settings.pacerStyle ?? 'line'); // 'line' or 'word'
   const [wordProgress, setWordProgress] = useState({ index: 0, value: 0 });
 
+  const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
+
   const animationRef = useRef(null);
 
   // Persist reading settings
@@ -60,7 +62,8 @@ function App() {
 
     if (currentIndex >= words.length - 1) return undefined;
 
-    const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex], wpm);
+    const baseDelay = (60 / wpm) * 1000;
+    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0);
     const start = performance.now();
 
     const tick = (now) => {
