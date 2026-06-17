@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { getPauseForWord } from '../utils/textParser';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -26,7 +27,7 @@ function cancelScrollAnimation(animationRef) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
 }
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wpm }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const [lineHighlight, setLineHighlight] = useState(null);
@@ -57,6 +58,22 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
         }
         return result;
     }, [text]);
+
+    const activeWordText = useMemo(() => {
+        for (const line of lines) {
+            for (const word of line.words) {
+                if (word.globalIndex === currentIndex) {
+                    return word.text;
+                }
+            }
+        }
+        return '';
+    }, [lines, currentIndex]);
+
+    const delay = useMemo(() => {
+        if (!activeWordText || !isPlaying) return 0;
+        return (60 / wpm) * 1000 + getPauseForWord(activeWordText, wpm);
+    }, [activeWordText, isPlaying, wpm]);
 
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
@@ -180,42 +197,40 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                                 {line.words.map((word) => {
                                     const isCurrentWord = word.globalIndex === currentIndex;
 
-                                    const wordBaseClass = pacerStyle === 'word'
-                                        ? 'pacer-word px-0.5 rounded'
-                                        : '';
-
-                                    if (pacerStyle === 'word' && isCurrentWord) {
-                                        return (
-                                            <span
-                                                key={word.globalIndex}
-                                                data-word-index={word.globalIndex}
-                                                className={`${wordBaseClass} pacer-word-highlight`}
-                                            >
-                                                {word.text}{' '}
-                                            </span>
-                                        );
-                                    }
-
-                                    if (pacerStyle === 'word' && word.globalIndex < currentIndex) {
-                                        return (
-                                            <span
-                                                key={word.globalIndex}
-                                                data-word-index={word.globalIndex}
-                                                className={`${wordBaseClass} text-zinc-500`}
-                                            >
-                                                {word.text}{' '}
-                                            </span>
-                                        );
+                                    let wordClass = '';
+                                    if (pacerStyle === 'word') {
+                                        if (isCurrentWord) {
+                                            wordClass = 'pacer-word px-0.5 rounded pacer-word-highlight relative inline-block';
+                                        } else if (word.globalIndex < currentIndex) {
+                                            wordClass = 'pacer-word px-0.5 rounded text-zinc-500';
+                                        } else {
+                                            wordClass = 'pacer-word px-0.5 rounded text-zinc-300';
+                                        }
+                                    } else {
+                                        if (isCurrentWord) {
+                                            wordClass = 'relative inline-block text-zinc-100 font-medium';
+                                        } else {
+                                            wordClass = 'text-zinc-300';
+                                        }
                                     }
 
                                     return (
-                                        <span
-                                            key={word.globalIndex}
-                                            data-word-index={word.globalIndex}
-                                            className={`${wordBaseClass} text-zinc-300`}
-                                        >
-                                            {word.text}{' '}
-                                        </span>
+                                        <React.Fragment key={word.globalIndex}>
+                                            <span
+                                                data-word-index={word.globalIndex}
+                                                className={wordClass}
+                                            >
+                                                {word.text}
+                                                {isCurrentWord && isPlaying && (
+                                                    <span
+                                                        key={currentIndex}
+                                                        className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full pacer-underline-bar"
+                                                        style={{ '--word-delay': `${delay}ms` }}
+                                                    />
+                                                )}
+                                            </span>
+                                            {' '}
+                                        </React.Fragment>
                                     );
                                 })}
                             </span>

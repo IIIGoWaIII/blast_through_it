@@ -228,6 +228,8 @@ function App() {
                 text={text}
                 currentIndex={currentIndex}
                 pacerStyle={pacerStyle}
+                isPlaying={isPlaying}
+                wpm={wpm}
               />
             )}
 
