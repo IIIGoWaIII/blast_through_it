@@ -28,28 +28,45 @@ export const getOrpIndex = (word) => {
     return Math.floor((length - 1) / 2);
 };
 
+// Pause ratios relative to base delay per word
+const SENTENCE_END_RATIO = 2.5; // . ! ? ;
+const COMMA_RATIO = 1.25;       // , : ( ) " "
+const MID_SENTENCE_RATIO = 5;   // mid-word punctuation (e.g. "said.She")
+
 /**
- * Returns extra pause in ms for trailing punctuation.
- * . ; ! ? = 500ms each, , : = 250ms each. Multiple stack.
+ * Returns extra pause in ms, scaled by WPM.
+ * Mid-word punctuation (e.g. "said.She") gets a larger pause.
  * @param {string} word
+ * @param {number} wpm
  * @returns {number}
  */
-export const getPauseForWord = (word) => {
-    let pause = 0;
+export const getPauseForWord = (word, wpm) => {
+    const baseDelay = (60 / wpm) * 1000;
+    let ratio = 0;
 
-    if (word.startsWith('(')) pause += 250;
+    // Mid-word sentence-ending punctuation (period/excl/question followed by a letter)
+    if (/[.;:!?][a-zA-Z]/.test(word)) {
+        ratio += MID_SENTENCE_RATIO;
+    }
 
-    const match = word.match(/[.;:!,)]+$/);
-    if (match) {
-        for (const char of match[0]) {
+    // Leading open-paren or open-quote
+    if (word.startsWith('(') || word.startsWith('"')) {
+        ratio += COMMA_RATIO;
+    }
+
+    // Trailing punctuation
+    const trailingMatch = word.match(/[.;:!,)""']+$/);
+    if (trailingMatch) {
+        for (const char of trailingMatch[0]) {
             if (char === '.' || char === ';' || char === '!' || char === '?') {
-                pause += 500;
+                ratio += SENTENCE_END_RATIO;
             } else {
-                pause += 250;
+                ratio += COMMA_RATIO;
             }
         }
     }
-    return pause;
+
+    return ratio * baseDelay;
 };
 
 /**
@@ -62,7 +79,7 @@ export const getPauseForWord = (word) => {
 export const calculateReadingTime = (words, wpm) => {
     if (!words.length || wpm <= 0) return 0;
     const baseDelayPerWord = (60 / wpm) * 1000;
-    const totalMs = words.reduce((sum, word) => sum + baseDelayPerWord + getPauseForWord(word), 0);
+    const totalMs = words.reduce((sum, word) => sum + baseDelayPerWord + getPauseForWord(word, wpm), 0);
     return totalMs / 1000;
 };
 

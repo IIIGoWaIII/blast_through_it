@@ -33,7 +33,7 @@ function App() {
   // Playback Logic
   useEffect(() => {
     if (isPlaying && currentIndex < words.length - 1) {
-      const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex]);
+      const delay = (60 / wpm) * 1000 + getPauseForWord(words[currentIndex], wpm);
       timerRef.current = setTimeout(() => {
         setCurrentIndex(prev => prev + 1);
       }, delay);
