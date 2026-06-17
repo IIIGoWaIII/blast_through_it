@@ -1,22 +1,36 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 
-function smoothScrollTo(el, target, duration = 250) {
+function smoothScrollTo(el, target, animationRef, duration = 250) {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+
     const start = el.scrollTop;
     const change = target - start;
     if (Math.abs(change) < 1) return;
+
     const startTime = performance.now();
     function step(now) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
         el.scrollTop = start + change * eased;
-        if (progress < 1) requestAnimationFrame(step);
+        if (progress < 1) {
+            animationRef.current = requestAnimationFrame(step);
+        } else {
+            animationRef.current = null;
+        }
     }
-    requestAnimationFrame(step);
+    animationRef.current = requestAnimationFrame(step);
 }
 
 const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     const containerRef = useRef(null);
+    const scrollAnimationRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
+        };
+    }, []);
 
     // Parse text into structured lines with word index tracking
     const lines = useMemo(() => {
@@ -52,25 +66,28 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
         return 0;
     }, [lines, currentIndex]);
 
-    // Auto-scroll to keep current line at 25% from top
+    // Auto-scroll once the active word would move below the top quarter.
     useEffect(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
-        const lineEls = container.querySelectorAll('[data-line-index]');
-        const currentEl = lineEls[currentLineIndex];
+        const currentEl = container.querySelector(`[data-word-index="${currentIndex}"]`)
+            ?? container.querySelector(`[data-line-index="${currentLineIndex}"]`);
+
         if (!currentEl) return;
 
         const containerRect = container.getBoundingClientRect();
         const elRect = currentEl.getBoundingClientRect();
+        const thresholdTop = container.clientHeight * 0.25;
+        const currentTop = elRect.top - containerRect.top;
 
-        const elAbsoluteTop = container.scrollTop + (elRect.top - containerRect.top);
-        const targetScrollTop = elAbsoluteTop - (container.clientHeight * 0.25);
+        if (currentTop <= thresholdTop && currentTop >= 0) return;
 
         const maxScroll = container.scrollHeight - container.clientHeight;
+        const targetScrollTop = container.scrollTop + currentTop - thresholdTop;
         const clamped = Math.max(0, Math.min(targetScrollTop, maxScroll));
 
-        smoothScrollTo(container, clamped);
-    }, [currentLineIndex]);
+        smoothScrollTo(container, clamped, scrollAnimationRef);
+    }, [currentIndex, currentLineIndex]);
 
     if (!text) {
         return (
@@ -116,6 +133,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
                                         return (
                                             <span
                                                 key={word.globalIndex}
+                                                data-word-index={word.globalIndex}
                                                 className="pacer-word-highlight px-0.5 rounded"
                                             >
                                                 {word.text}{' '}
@@ -125,14 +143,22 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
 
                                     if (pacerStyle === 'word' && word.globalIndex < currentIndex) {
                                         return (
-                                            <span key={word.globalIndex} className="text-zinc-500">
+                                            <span
+                                                key={word.globalIndex}
+                                                data-word-index={word.globalIndex}
+                                                className="text-zinc-500"
+                                            >
                                                 {word.text}{' '}
                                             </span>
                                         );
                                     }
 
                                     return (
-                                        <span key={word.globalIndex} className="text-zinc-300">
+                                        <span
+                                            key={word.globalIndex}
+                                            data-word-index={word.globalIndex}
+                                            className="text-zinc-300"
+                                        >
                                             {word.text}{' '}
                                         </span>
                                     );
