@@ -7,20 +7,38 @@ import { parseTextToWords, getPauseForWord, calculateReadingTime, formatTime } f
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('blast-settings'));
+    if (!saved) return {};
+    return {
+      wpm: typeof saved.wpm === 'number' && saved.wpm >= 50 && saved.wpm <= 1200 ? saved.wpm : undefined,
+      readingMode: ['rsvp', 'visualPacer'].includes(saved.readingMode) ? saved.readingMode : undefined,
+      pacerStyle: ['line', 'word'].includes(saved.pacerStyle) ? saved.pacerStyle : undefined,
+    };
+  } catch { return {}; }
+}
+
 function App() {
   const simplified = shouldSimplify();
+  const settings = loadSettings();
 
   const [mode, setMode] = useState('input'); // 'input' or 'reader'
   const [text, setText] = useState('');
   const [words, setWords] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [wpm, setWpm] = useState(300);
+  const [wpm, setWpm] = useState(settings.wpm ?? 300);
   const [nightMode, setNightMode] = useState(false);
-  const [readingMode, setReadingMode] = useState('rsvp'); // 'rsvp' or 'visualPacer'
-  const [pacerStyle, setPacerStyle] = useState('line'); // 'line' or 'word'
+  const [readingMode, setReadingMode] = useState(settings.readingMode ?? 'rsvp'); // 'rsvp' or 'visualPacer'
+  const [pacerStyle, setPacerStyle] = useState(settings.pacerStyle ?? 'line'); // 'line' or 'word'
 
   const timerRef = useRef(null);
+
+  // Persist reading settings
+  useEffect(() => {
+    localStorage.setItem('blast-settings', JSON.stringify({ wpm, readingMode, pacerStyle }));
+  }, [wpm, readingMode, pacerStyle]);
 
   // Handle text submission from InputArea
   const handleTextSubmit = (submittedText) => {
