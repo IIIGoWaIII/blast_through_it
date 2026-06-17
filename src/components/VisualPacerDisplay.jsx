@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -22,17 +22,21 @@ function smoothScrollTo(el, target, animationRef, duration = 250) {
     animationRef.current = requestAnimationFrame(step);
 }
 
+function cancelScrollAnimation(animationRef) {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+}
+
 const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
+    const [lineHighlight, setLineHighlight] = useState(null);
 
     useEffect(() => {
-        return () => {
-            if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
-        };
+        return () => cancelScrollAnimation(scrollAnimationRef);
     }, []);
 
-    // Parse text into structured lines with word index tracking
+    // Parse text into structured source rows with word index tracking.
+    // Visual line mode measures rendered rows below, so wrapped text follows the device width.
     const lines = useMemo(() => {
         if (!text) return [];
         const paragraphs = text.split(/\n\n+/);
@@ -54,24 +58,70 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
         return result;
     }, [text]);
 
-    // Find which line contains the current word
-    const currentLineIndex = useMemo(() => {
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.isBlank) continue;
-            for (const w of line.words) {
-                if (w.globalIndex === currentIndex) return i;
-            }
+    useLayoutEffect(() => {
+        if (pacerStyle !== 'line' || !containerRef.current) {
+            setLineHighlight(null);
+            return undefined;
         }
-        return 0;
-    }, [lines, currentIndex]);
+
+        let frameId = null;
+
+        const measureCurrentVisualLine = () => {
+            const container = containerRef.current;
+            const currentEl = container?.querySelector(`[data-word-index="${currentIndex}"]`);
+
+            if (!container || !currentEl) {
+                setLineHighlight(null);
+                return;
+            }
+
+            const containerRect = container.getBoundingClientRect();
+            const elRect = currentEl.getBoundingClientRect();
+            const nextHighlight = {
+                top: elRect.top - containerRect.top + container.scrollTop - 4,
+                height: elRect.height + 8,
+            };
+
+            setLineHighlight((prev) => {
+                if (
+                    prev
+                    && Math.abs(prev.top - nextHighlight.top) < 0.5
+                    && Math.abs(prev.height - nextHighlight.height) < 0.5
+                ) {
+                    return prev;
+                }
+                return nextHighlight;
+            });
+        };
+
+        const scheduleMeasure = () => {
+            if (frameId) cancelAnimationFrame(frameId);
+            frameId = requestAnimationFrame(measureCurrentVisualLine);
+        };
+
+        scheduleMeasure();
+
+        const container = containerRef.current;
+        let observer = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            observer = new ResizeObserver(scheduleMeasure);
+            observer.observe(container);
+        } else {
+            window.addEventListener('resize', scheduleMeasure);
+        }
+
+        return () => {
+            if (frameId) cancelAnimationFrame(frameId);
+            if (observer) observer.disconnect();
+            else window.removeEventListener('resize', scheduleMeasure);
+        };
+    }, [currentIndex, pacerStyle, text]);
 
     // Auto-scroll once the active word would move below the top quarter.
     useEffect(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
-        const currentEl = container.querySelector(`[data-word-index="${currentIndex}"]`)
-            ?? container.querySelector(`[data-line-index="${currentLineIndex}"]`);
+        const currentEl = container.querySelector(`[data-word-index="${currentIndex}"]`);
 
         if (!currentEl) return;
 
@@ -87,7 +137,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
         const clamped = Math.max(0, Math.min(targetScrollTop, maxScroll));
 
         smoothScrollTo(container, clamped, scrollAnimationRef);
-    }, [currentIndex, currentLineIndex]);
+    }, [currentIndex]);
 
     if (!text) {
         return (
@@ -100,31 +150,32 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     return (
         <div
             ref={containerRef}
-            className="w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
+            className="relative w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
         >
-            <div className="font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
+            {lineHighlight && (
+                <div
+                    className="absolute left-4 right-4 sm:left-6 sm:right-6 md:left-10 md:right-10 bg-red-500/15 rounded pointer-events-none transition-[top,height] duration-150"
+                    style={{
+                        top: `${lineHighlight.top}px`,
+                        height: `${lineHighlight.height}px`,
+                    }}
+                    aria-hidden="true"
+                >
+                    <div className="absolute inset-y-0 left-0 w-1 bg-red-500 rounded-r" />
+                </div>
+            )}
+            <div className="relative font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
                 {lines.map((line, lineIdx) => {
                     if (line.isBlank) {
                         return <div key={`blank-${lineIdx}`} className="h-6" />;
                     }
 
-                    const isCurrentLine = lineIdx === currentLineIndex;
-
                     return (
                         <div
                             key={`line-${lineIdx}`}
                             data-line-index={lineIdx}
-                            className={`relative px-2 py-1 rounded transition-colors duration-150 ${
-                                isCurrentLine && pacerStyle === 'line'
-                                    ? 'bg-red-500/15'
-                                    : ''
-                            }`}
+                            className="relative px-2 py-1 rounded transition-colors duration-150"
                         >
-                            {/* Line highlight bar */}
-                            {isCurrentLine && pacerStyle === 'line' && (
-                                <div className="absolute inset-y-0 left-0 w-1 bg-red-500 rounded-r" />
-                            )}
-
                             <span>
                                 {line.words.map((word) => {
                                     const isCurrentWord = word.globalIndex === currentIndex;
