@@ -125,12 +125,7 @@ function App() {
       )}
 
       {/* Night mode overlay */}
-      {nightMode && (
-        <div
-          className="fixed inset-0 z-20 pointer-events-none bg-black/50"
-          style={{ maskImage: 'radial-gradient(ellipse 35% 15% at 50% 50%, transparent 100%, black 100%)' }}
-        />
-      )}
+      {/* Vignette removed as requested */}
 
       {/* Night mode toggle — reader mode only */}
       {mode === 'reader' && (
@@ -194,7 +189,7 @@ function App() {
             />
 
             {/* Progress Stats */}
-            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 transition-opacity duration-300 ${nightMode ? 'max-md:opacity-5' : ''}`}>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 transition-opacity duration-300 ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
               Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}% Complete • {totalTime}
             </div>
           </div>

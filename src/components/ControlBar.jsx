@@ -61,7 +61,7 @@ const ControlBar = ({
                 </div>
             </div>
 
-            <div className={`space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'max-md:opacity-5' : ''}`}>
+            <div className={`space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
                 <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 text-center">
                     {remainingTime}
                 </div>
