@@ -1,5 +1,20 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 
+function smoothScrollTo(el, target, duration = 250) {
+    const start = el.scrollTop;
+    const change = target - start;
+    if (Math.abs(change) < 1) return;
+    const startTime = performance.now();
+    function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.scrollTop = start + change * eased;
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
 const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     const containerRef = useRef(null);
 
@@ -37,7 +52,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
         return 0;
     }, [lines, currentIndex]);
 
-    // Auto-scroll to keep current line centered
+    // Auto-scroll to keep current line at 25% from top
     useEffect(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
@@ -47,12 +62,14 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
 
         const containerRect = container.getBoundingClientRect();
         const elRect = currentEl.getBoundingClientRect();
-        const offset = elRect.top - containerRect.top - (containerRect.height / 2) + (elRect.height / 2);
 
-        container.scrollTo({
-            top: container.scrollTop + offset,
-            behavior: 'smooth',
-        });
+        const elAbsoluteTop = container.scrollTop + (elRect.top - containerRect.top);
+        const targetScrollTop = elAbsoluteTop - (container.clientHeight * 0.25);
+
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        const clamped = Math.max(0, Math.min(targetScrollTop, maxScroll));
+
+        smoothScrollTo(container, clamped);
     }, [currentLineIndex]);
 
     if (!text) {
@@ -66,7 +83,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     return (
         <div
             ref={containerRef}
-            className="w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto scroll-smooth rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
+            className="w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
         >
             <div className="font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
                 {lines.map((line, lineIdx) => {
