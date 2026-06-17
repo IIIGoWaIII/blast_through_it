@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
+import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
 import { parseTextToWords, getPauseForWord, calculateReadingTime, formatTime } from './utils/textParser';
-import { ChevronLeft, Moon } from 'lucide-react';
+import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
 function App() {
@@ -16,6 +17,8 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [wpm, setWpm] = useState(300);
   const [nightMode, setNightMode] = useState(false);
+  const [readingMode, setReadingMode] = useState('rsvp'); // 'rsvp' or 'visualPacer'
+  const [pacerStyle, setPacerStyle] = useState('line'); // 'line' or 'word'
 
   const timerRef = useRef(null);
 
@@ -64,6 +67,9 @@ function App() {
           break;
         case 'n': // Night mode
           setNightMode(prev => !prev);
+          break;
+        case 'v': // Toggle reading mode (RSVP vs Visual Pacer)
+          setReadingMode(prev => prev === 'rsvp' ? 'visualPacer' : 'rsvp');
           break;
         case 'r': // Reset
           setCurrentIndex(0);
@@ -127,19 +133,57 @@ function App() {
       {/* Night mode overlay */}
       {/* Vignette removed as requested */}
 
-      {/* Night mode toggle — reader mode only */}
+      {/* Reader mode buttons — top right */}
       {mode === 'reader' && (
-        <button
-          onClick={() => setNightMode(prev => !prev)}
-          className={`fixed top-4 right-4 z-40 w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
-            nightMode
-              ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
-              : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
-          }`}
-          aria-label="Toggle night reading mode"
-        >
-          <Moon size={22} fill={nightMode ? 'currentColor' : 'none'} />
-        </button>
+        <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
+          {/* Reading mode toggle (RSVP vs Visual Pacer) */}
+          <button
+            onClick={() => setReadingMode(prev => prev === 'rsvp' ? 'visualPacer' : 'rsvp')}
+            className={`w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
+              readingMode === 'visualPacer'
+                ? 'bg-red-500/20 text-red-500 border border-red-500/30'
+                : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
+            }`}
+            aria-label="Toggle between RSVP and Visual Pacer"
+            title={readingMode === 'rsvp' ? 'Switch to Visual Pacer' : 'Switch to RSVP'}
+          >
+            {readingMode === 'rsvp' ? <BookOpen size={22} /> : <AlignLeft size={22} />}
+          </button>
+
+          {/* Pacer style sub-toggle — only when visual pacer is active */}
+          {readingMode === 'visualPacer' && (
+            <button
+              onClick={() => setPacerStyle(prev => prev === 'line' ? 'word' : 'line')}
+              className="h-12 md:h-10 px-3 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-all bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white"
+              aria-label={`Switch to ${pacerStyle === 'line' ? 'word' : 'line'} highlight`}
+            >
+              {pacerStyle === 'line' ? (
+                <>
+                  <AlignLeft size={14} />
+                  <span className="hidden md:inline">Line</span>
+                </>
+              ) : (
+                <>
+                  <span className="inline-block w-3 h-3 rounded bg-red-500/60" />
+                  <span className="hidden md:inline">Word</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Night mode toggle */}
+          <button
+            onClick={() => setNightMode(prev => !prev)}
+            className={`w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${
+              nightMode
+                ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
+                : 'bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white'
+            }`}
+            aria-label="Toggle night reading mode"
+          >
+            <Moon size={22} fill={nightMode ? 'currentColor' : 'none'} />
+          </button>
+        </div>
       )}
 
       <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-6 md:py-12 px-4">
@@ -159,7 +203,15 @@ function App() {
             </div>
 
             {/* Reader Stage */}
-            <ReaderDisplay word={words[currentIndex]} />
+            {readingMode === 'rsvp' ? (
+              <ReaderDisplay word={words[currentIndex]} />
+            ) : (
+              <VisualPacerDisplay
+                text={text}
+                currentIndex={currentIndex}
+                pacerStyle={pacerStyle}
+              />
+            )}
 
             {/* Controls */}
             <ControlBar
@@ -203,6 +255,7 @@ function App() {
           <span>[D] Faster</span>
           <span>[S] Slower</span>
           <span>[N] Night Mode</span>
+          <span>[V] Pacer Mode</span>
           <span>[R] Reset</span>
           <span>[Esc] Editor</span>
         </div>
