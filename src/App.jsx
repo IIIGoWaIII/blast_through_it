@@ -186,11 +186,11 @@ function App() {
         </div>
       )}
 
-      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-6 md:py-12 px-4">
+      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-2 sm:py-6 md:py-12 px-4">
         {mode === 'input' ? (
           <InputArea onTextSubmit={handleTextSubmit} />
         ) : (
-          <div className={`w-full flex flex-col items-center space-y-12 ${animClass}`}>
+          <div className={`w-full flex flex-col items-center space-y-4 sm:space-y-6 md:space-y-12 ${animClass}`}>
             {/* Header / Back button */}
             <div className="absolute top-4 left-4 md:top-8 md:left-8">
               <button

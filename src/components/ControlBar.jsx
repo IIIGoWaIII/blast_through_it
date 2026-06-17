@@ -31,7 +31,7 @@ const ControlBar = ({
     };
 
     return (
-        <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto space-y-6 md:space-y-8 px-4">
+        <div className="w-full max-w-[95vw] md:max-w-[75vw] mx-auto space-y-4 sm:space-y-6 md:space-y-8 px-4">
             {/* Playhead Slider + Jump Input */}
             <div className="flex items-center gap-3 progress-container">
                 <div className="relative group flex-1">
@@ -61,7 +61,7 @@ const ControlBar = ({
                 </div>
             </div>
 
-            <div className={`space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
+            <div className={`space-y-4 sm:space-y-6 md:space-y-8 transition-opacity duration-300 ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
                 <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 text-center">
                     {remainingTime}
                 </div>
@@ -105,29 +105,29 @@ const ControlBar = ({
                 </div>
 
                 {/* Mobile WPM Controls */}
-                <div className="flex md:hidden flex-col items-center gap-6 order-3 w-full border-t border-white/5 pt-8">
+                <div className="flex md:hidden flex-col items-center gap-4 sm:gap-6 order-3 w-full border-t border-white/5 pt-4 sm:pt-8">
                     <div className="flex items-center justify-between w-full px-4">
                         <button
                             onClick={() => onWpmChange(Math.max(wpm - 10, 50))}
-                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
+                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
                             aria-label="Decrease WPM"
                         >
-                            <Minus size={48} strokeWidth={3} />
+                            <Minus size={32} strokeWidth={3} className="sm:w-10 sm:h-10" />
                         </button>
 
                         <div className="flex flex-col items-center">
-                            <span className="text-6xl font-black tracking-tighter italic text-white">
+                            <span className="text-4xl sm:text-5xl font-black tracking-tighter italic text-white">
                                 {wpm}
                             </span>
-                            <span className="text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Words Per Minute</span>
+                            <span className="text-[10px] sm:text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Words Per Minute</span>
                         </div>
 
                         <button
                             onClick={() => onWpmChange(Math.min(wpm + 10, 1200))}
-                            className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
+                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 active:bg-zinc-700 active:text-white transition-all active:scale-90"
                             aria-label="Increase WPM"
                         >
-                            <Plus size={48} strokeWidth={3} />
+                            <Plus size={32} strokeWidth={3} className="sm:w-10 sm:h-10" />
                         </button>
                     </div>
                 </div>

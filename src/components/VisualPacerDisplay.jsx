@@ -66,7 +66,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle }) => {
     return (
         <div
             ref={containerRef}
-            className="w-full max-w-[95vw] md:max-w-[75vw] h-[60vh] overflow-y-auto scroll-smooth rounded-xl p-6 md:p-10 pacer-scroll"
+            className="w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto scroll-smooth rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
         >
             <div className="font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
                 {lines.map((line, lineIdx) => {
