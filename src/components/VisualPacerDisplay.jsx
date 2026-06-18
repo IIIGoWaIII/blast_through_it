@@ -243,7 +243,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                         && word.globalIndex >= lineHighlight.startIndex
                                         && word.globalIndex <= lineHighlight.endIndex
                                     ) {
-                                        wordClass = 'text-zinc-100 font-medium';
+                                        wordClass = 'text-zinc-100';
                                     } else if (word.globalIndex < currentIndex) {
                                         wordClass = 'text-zinc-500';
                                     } else {
