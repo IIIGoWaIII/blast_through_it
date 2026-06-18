@@ -78,9 +78,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
             const containerRect = container.getBoundingClientRect();
             const elRect = currentEl.getBoundingClientRect();
+            const currentTop = elRect.top;
+            const sameLineWords = Array.from(container.querySelectorAll('[data-word-index]'))
+                .filter((wordEl) => Math.abs(wordEl.getBoundingClientRect().top - currentTop) < 2)
+                .map((wordEl) => Number(wordEl.dataset.wordIndex))
+                .filter(Number.isFinite);
             const nextHighlight = {
                 top: elRect.top - containerRect.top + container.scrollTop - 4,
                 height: elRect.height + 8,
+                startIndex: Math.min(...sameLineWords),
+                endIndex: Math.max(...sameLineWords),
             };
 
             setLineHighlight((prev) => {
@@ -88,6 +95,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                     prev
                     && Math.abs(prev.top - nextHighlight.top) < 0.5
                     && Math.abs(prev.height - nextHighlight.height) < 0.5
+                    && prev.startIndex === nextHighlight.startIndex
+                    && prev.endIndex === nextHighlight.endIndex
                 ) {
                     return prev;
                 }
@@ -148,6 +157,17 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         );
     }
 
+    const lineProgress = lineHighlight
+        ? Math.min(
+            Math.max(
+                (currentIndex - lineHighlight.startIndex + wordProgress)
+                / (lineHighlight.endIndex - lineHighlight.startIndex + 1),
+                0,
+            ),
+            1,
+        )
+        : 0;
+
     return (
         <div
             ref={containerRef}
@@ -166,7 +186,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                     {isPlaying && (
                         <div
                             className="absolute bottom-0 left-0 h-[2px] bg-red-500 rounded-full"
-                            style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
+                            style={{ width: `${lineProgress * 100}%` }}
                         />
                     )}
                 </div>
