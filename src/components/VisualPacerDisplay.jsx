@@ -41,6 +41,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
+    const previousHighlightWindowStartRef = useRef(null);
+    const [shouldAnimateHighlight, setShouldAnimateHighlight] = useState(true);
     const [lineHighlight, setLineHighlight] = useState(null);
 
     useEffect(() => {
@@ -135,6 +137,10 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 return;
             }
 
+            const windowChanged = previousHighlightWindowStartRef.current !== renderWindow.start;
+            previousHighlightWindowStartRef.current = renderWindow.start;
+            setShouldAnimateHighlight(!windowChanged);
+
             const containerRect = container.getBoundingClientRect();
             const elRect = getFirstRect(currentEl);
             const currentCenter = elRect.top + (elRect.height / 2);
@@ -204,7 +210,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             if (observer) observer.disconnect();
             else window.removeEventListener('resize', scheduleMeasure);
         };
-    }, [currentIndex, pacerStyle, visibleLines]);
+    }, [currentIndex, pacerStyle, visibleLines, renderWindow.start]);
 
     // Auto-scroll once the active word would move below the top quarter.
     // When the render window moves, correct scrollTop before paint to avoid a visible jump.
@@ -265,7 +271,9 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         >
             {lineHighlight && (
                 <div
-                    className="absolute bg-red-500/15 rounded pointer-events-none transition-[left,top,width,height] duration-150"
+                    className={`absolute bg-red-500/15 rounded pointer-events-none ${
+                        shouldAnimateHighlight ? 'transition-[left,top,width,height] duration-150' : ''
+                    }`}
                     style={{
                         left: `${lineHighlight.left}px`,
                         top: `${lineHighlight.top}px`,
