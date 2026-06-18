@@ -40,6 +40,7 @@ const ESTIMATED_LINE_HEIGHT_PX = 36;
 const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
+    const previousWindowStartRef = useRef(null);
     const [lineHighlight, setLineHighlight] = useState(null);
 
     useEffect(() => {
@@ -206,7 +207,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     }, [currentIndex, pacerStyle, visibleLines]);
 
     // Auto-scroll once the active word would move below the top quarter.
-    useEffect(() => {
+    // When the render window moves, correct scrollTop before paint to avoid a visible jump.
+    useLayoutEffect(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
         const currentEl = container.querySelector(`[data-word-index="${currentIndex}"]`);
@@ -217,6 +219,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         const elRect = currentEl.getBoundingClientRect();
         const thresholdTop = container.clientHeight * 0.25;
         const currentTop = elRect.top - containerRect.top;
+        const windowChanged = previousWindowStartRef.current !== renderWindow.start;
+        previousWindowStartRef.current = renderWindow.start;
 
         if (currentTop <= thresholdTop && currentTop >= 0) return;
 
@@ -224,8 +228,14 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         const targetScrollTop = container.scrollTop + currentTop - thresholdTop;
         const clamped = Math.max(0, Math.min(targetScrollTop, maxScroll));
 
+        if (windowChanged) {
+            cancelScrollAnimation(scrollAnimationRef);
+            container.scrollTop = clamped;
+            return;
+        }
+
         smoothScrollTo(container, clamped, scrollAnimationRef);
-    }, [currentIndex]);
+    }, [currentIndex, renderWindow.start]);
 
     const lineProgress = useMemo(() => {
         if (!lineHighlight) return 0;
