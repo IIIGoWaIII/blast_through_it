@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { parseTextToWords } from '../utils/textParser';
+import { getNewParagraphIndices, getPauseForWord, parseTextToWords } from '../utils/textParser';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -27,7 +27,11 @@ function cancelScrollAnimation(animationRef) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
 }
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
+function getFirstRect(el) {
+    return el.getClientRects()[0] ?? el.getBoundingClientRect();
+}
+
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, wpm }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const [lineHighlight, setLineHighlight] = useState(null);
@@ -59,6 +63,9 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         return result;
     }, [text]);
 
+    const allWords = useMemo(() => parseTextToWords(text), [text]);
+    const paragraphStarts = useMemo(() => getNewParagraphIndices(text, allWords), [text, allWords]);
+
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
             setLineHighlight(null);
@@ -77,10 +84,13 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             }
 
             const containerRect = container.getBoundingClientRect();
-            const elRect = currentEl.getBoundingClientRect();
-            const currentTop = elRect.top;
+            const elRect = getFirstRect(currentEl);
+            const currentCenter = elRect.top + (elRect.height / 2);
             const sameLineWords = Array.from(container.querySelectorAll('[data-word-index]'))
-                .filter((wordEl) => Math.abs(wordEl.getBoundingClientRect().top - currentTop) < 2)
+                .filter((wordEl) => {
+                    const rect = getFirstRect(wordEl);
+                    return currentCenter >= rect.top && currentCenter <= rect.bottom;
+                })
                 .map((wordEl) => Number(wordEl.dataset.wordIndex))
                 .filter(Number.isFinite);
             const nextHighlight = {
@@ -149,6 +159,29 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         smoothScrollTo(container, clamped, scrollAnimationRef);
     }, [currentIndex]);
 
+    const lineProgress = useMemo(() => {
+        if (!lineHighlight) return 0;
+
+        const baseDelay = (60 / wpm) * 1000;
+        let elapsed = 0;
+        let total = 0;
+
+        for (let index = lineHighlight.startIndex; index <= lineHighlight.endIndex; index += 1) {
+            const wordDelay = baseDelay
+                + getPauseForWord(allWords[index], wpm)
+                + (paragraphStarts.has(index) ? baseDelay * 3 : 0);
+            total += wordDelay;
+
+            if (index < currentIndex) {
+                elapsed += wordDelay;
+            } else if (index === currentIndex) {
+                elapsed += wordDelay * wordProgress;
+            }
+        }
+
+        return total > 0 ? Math.min(Math.max(elapsed / total, 0), 1) : 0;
+    }, [allWords, currentIndex, lineHighlight, paragraphStarts, wordProgress, wpm]);
+
     if (!text) {
         return (
             <div className="h-64 flex items-center justify-center text-zinc-500 italic">
@@ -156,17 +189,6 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             </div>
         );
     }
-
-    const lineProgress = lineHighlight
-        ? Math.min(
-            Math.max(
-                (currentIndex - lineHighlight.startIndex + wordProgress)
-                / (lineHighlight.endIndex - lineHighlight.startIndex + 1),
-                0,
-            ),
-            1,
-        )
-        : 0;
 
     return (
         <div
@@ -216,12 +238,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                         } else {
                                             wordClass = 'pacer-word px-0.5 rounded text-zinc-300';
                                         }
+                                    } else if (
+                                        lineHighlight
+                                        && word.globalIndex >= lineHighlight.startIndex
+                                        && word.globalIndex <= lineHighlight.endIndex
+                                    ) {
+                                        wordClass = 'text-zinc-100 font-medium';
+                                    } else if (word.globalIndex < currentIndex) {
+                                        wordClass = 'text-zinc-500';
                                     } else {
-                                        if (isCurrentWord) {
-                                            wordClass = 'relative inline-block text-zinc-100 font-medium';
-                                        } else {
-                                            wordClass = 'text-zinc-300';
-                                        }
+                                        wordClass = 'text-zinc-300';
                                     }
 
                                     return (

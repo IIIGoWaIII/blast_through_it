@@ -254,6 +254,7 @@ function App() {
                 pacerStyle={pacerStyle}
                 isPlaying={isPlaying}
                 wordProgress={activeWordProgress}
+                wpm={wpm}
               />
             )}
 
