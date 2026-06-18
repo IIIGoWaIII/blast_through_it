@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { getNewParagraphIndices, getPauseForWord, parseTextToWords } from '../utils/textParser';
+import { parseTextToWords } from '../utils/textParser';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -31,7 +31,7 @@ function getFirstRect(el) {
     return el.getClientRects()[0] ?? el.getBoundingClientRect();
 }
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, wpm }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const [lineHighlight, setLineHighlight] = useState(null);
@@ -62,9 +62,6 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         }
         return result;
     }, [text]);
-
-    const allWords = useMemo(() => parseTextToWords(text), [text]);
-    const paragraphStarts = useMemo(() => getNewParagraphIndices(text, allWords), [text, allWords]);
 
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
@@ -97,6 +94,14 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             const sameLineRects = sameLineWordEls.map(getFirstRect);
             const left = Math.min(...sameLineRects.map((rect) => rect.left));
             const right = Math.max(...sameLineRects.map((rect) => rect.right));
+            const wordBounds = sameLineWordEls.reduce((bounds, wordEl) => {
+                const rect = getFirstRect(wordEl);
+                bounds[Number(wordEl.dataset.wordIndex)] = {
+                    left: rect.left - left,
+                    width: rect.width,
+                };
+                return bounds;
+            }, {});
             const nextHighlight = {
                 left: left - containerRect.left + container.scrollLeft - 4,
                 top: elRect.top - containerRect.top + container.scrollTop - 4,
@@ -104,6 +109,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 height: elRect.height + 8,
                 startIndex: Math.min(...sameLineWords),
                 endIndex: Math.max(...sameLineWords),
+                wordBounds,
             };
 
             setLineHighlight((prev) => {
@@ -116,7 +122,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                     && prev.startIndex === nextHighlight.startIndex
                     && prev.endIndex === nextHighlight.endIndex
                 ) {
-                    return prev;
+                    return { ...prev, wordBounds: nextHighlight.wordBounds };
                 }
                 return nextHighlight;
             });
@@ -169,26 +175,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
     const lineProgress = useMemo(() => {
         if (!lineHighlight) return 0;
+        if (currentIndex < lineHighlight.startIndex) return 0;
+        if (currentIndex > lineHighlight.endIndex) return 1;
 
-        const baseDelay = (60 / wpm) * 1000;
-        let elapsed = 0;
-        let total = 0;
+        const currentBounds = lineHighlight.wordBounds[currentIndex];
+        if (!currentBounds) return 0;
 
-        for (let index = lineHighlight.startIndex; index <= lineHighlight.endIndex; index += 1) {
-            const wordDelay = baseDelay
-                + getPauseForWord(allWords[index], wpm)
-                + (paragraphStarts.has(index) ? baseDelay * 3 : 0);
-            total += wordDelay;
-
-            if (index < currentIndex) {
-                elapsed += wordDelay;
-            } else if (index === currentIndex) {
-                elapsed += wordDelay * wordProgress;
-            }
-        }
-
-        return total > 0 ? Math.min(Math.max(elapsed / total, 0), 1) : 0;
-    }, [allWords, currentIndex, lineHighlight, paragraphStarts, wordProgress, wpm]);
+        const textWidth = Math.max(lineHighlight.width - 8, 1);
+        const progressPx = currentBounds.left + (currentBounds.width * wordProgress);
+        return Math.min(Math.max(progressPx / textWidth, 0), 1);
+    }, [currentIndex, lineHighlight, wordProgress]);
 
     if (!text) {
         return (

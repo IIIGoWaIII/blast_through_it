@@ -86,7 +86,7 @@ function App() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isPlaying, currentIndex, words, wpm]);
+  }, [isPlaying, currentIndex, words, wpm, paragraphStarts]);
 
   // Keyboard Shortcuts
   useEffect(() => {
