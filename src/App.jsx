@@ -161,9 +161,15 @@ function App() {
 
   const bgBlur = simplified ? '' : 'blur-[120px]';
   const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
+  const shellClass = mode === 'reader'
+    ? 'h-svh min-h-svh overflow-hidden'
+    : 'min-h-svh';
+  const mainClass = mode === 'reader'
+    ? 'h-full min-h-0 overflow-hidden'
+    : 'min-h-svh';
 
   return (
-    <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
+    <div className={`${shellClass} w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30`}>
       {/* Background patterns */}
       {!simplified && (
         <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
@@ -228,7 +234,7 @@ function App() {
         </div>
       )}
 
-      <main className="relative z-10 container mx-auto flex flex-col items-center justify-center min-h-dvh py-2 sm:py-6 md:py-12 px-4">
+      <main className={`relative z-10 container mx-auto flex flex-col items-center justify-center ${mainClass} py-2 sm:py-6 md:py-12 px-4`}>
         {mode === 'input' ? (
           <InputArea onTextSubmit={handleTextSubmit} />
         ) : (

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { parseTextToWords } from '../utils/textParser';
+import { isMobile } from '../utils/device';
 
 function smoothScrollTo(el, target, animationRef, duration = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -7,6 +8,11 @@ function smoothScrollTo(el, target, animationRef, duration = 250) {
     const start = el.scrollTop;
     const change = target - start;
     if (Math.abs(change) < 1) return;
+    if (duration <= 0) {
+        el.scrollTop = target;
+        animationRef.current = null;
+        return;
+    }
 
     const startTime = performance.now();
     function step(now) {
@@ -42,6 +48,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
     const previousHighlightWindowStartRef = useRef(null);
+    const useInstantScroll = useMemo(() => isMobile(), []);
     const [shouldAnimateHighlight, setShouldAnimateHighlight] = useState(true);
     const [lineHighlight, setLineHighlight] = useState(null);
 
@@ -240,8 +247,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             return;
         }
 
-        smoothScrollTo(container, clamped, scrollAnimationRef);
-    }, [currentIndex, renderWindow.start]);
+        smoothScrollTo(container, clamped, scrollAnimationRef, useInstantScroll ? 0 : 250);
+    }, [currentIndex, renderWindow.start, useInstantScroll]);
 
     const lineProgress = useMemo(() => {
         if (!lineHighlight) return 0;
@@ -267,7 +274,11 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     return (
         <div
             ref={containerRef}
-            className="relative w-full max-w-[95vw] md:max-w-[75vw] h-[40vh] md:h-[60vh] overflow-y-auto rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
+            className="relative w-full max-w-[95vw] md:max-w-[75vw] h-[40svh] md:h-[60svh] overflow-y-auto overscroll-contain rounded-xl p-4 sm:p-6 md:p-10 pacer-scroll"
+            style={{
+                overflowAnchor: 'none',
+                WebkitOverflowScrolling: 'touch',
+            }}
         >
             {lineHighlight && (
                 <div
