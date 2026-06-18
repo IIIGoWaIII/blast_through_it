@@ -154,7 +154,7 @@ function App() {
   };
 
   const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
-  const activeWordProgress = isPlaying && wordProgress.index === currentIndex ? wordProgress.value : 0;
+  const activeWordProgress = wordProgress.index === currentIndex ? wordProgress.value : 0;
 
   const totalTime = formatTime(calculateReadingTime(words, wpm));
   const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm));

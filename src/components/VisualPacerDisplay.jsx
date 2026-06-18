@@ -86,15 +86,21 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             const containerRect = container.getBoundingClientRect();
             const elRect = getFirstRect(currentEl);
             const currentCenter = elRect.top + (elRect.height / 2);
-            const sameLineWords = Array.from(container.querySelectorAll('[data-word-index]'))
+            const sameLineWordEls = Array.from(container.querySelectorAll('[data-word-index]'))
                 .filter((wordEl) => {
                     const rect = getFirstRect(wordEl);
                     return currentCenter >= rect.top && currentCenter <= rect.bottom;
-                })
+                });
+            const sameLineWords = sameLineWordEls
                 .map((wordEl) => Number(wordEl.dataset.wordIndex))
                 .filter(Number.isFinite);
+            const sameLineRects = sameLineWordEls.map(getFirstRect);
+            const left = Math.min(...sameLineRects.map((rect) => rect.left));
+            const right = Math.max(...sameLineRects.map((rect) => rect.right));
             const nextHighlight = {
+                left: left - containerRect.left + container.scrollLeft - 4,
                 top: elRect.top - containerRect.top + container.scrollTop - 4,
+                width: right - left + 8,
                 height: elRect.height + 8,
                 startIndex: Math.min(...sameLineWords),
                 endIndex: Math.max(...sameLineWords),
@@ -103,7 +109,9 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             setLineHighlight((prev) => {
                 if (
                     prev
+                    && Math.abs(prev.left - nextHighlight.left) < 0.5
                     && Math.abs(prev.top - nextHighlight.top) < 0.5
+                    && Math.abs(prev.width - nextHighlight.width) < 0.5
                     && Math.abs(prev.height - nextHighlight.height) < 0.5
                     && prev.startIndex === nextHighlight.startIndex
                     && prev.endIndex === nextHighlight.endIndex
@@ -197,20 +205,20 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         >
             {lineHighlight && (
                 <div
-                    className="absolute left-4 right-4 sm:left-6 sm:right-6 md:left-10 md:right-10 bg-red-500/15 rounded pointer-events-none transition-[top,height] duration-150"
+                    className="absolute bg-red-500/15 rounded pointer-events-none transition-[left,top,width,height] duration-150"
                     style={{
+                        left: `${lineHighlight.left}px`,
                         top: `${lineHighlight.top}px`,
+                        width: `${lineHighlight.width}px`,
                         height: `${lineHighlight.height}px`,
                     }}
                     aria-hidden="true"
                 >
                     <div className="absolute inset-y-0 left-0 w-1 bg-red-500 rounded-r" />
-                    {isPlaying && (
-                        <div
-                            className="absolute bottom-0 left-0 h-[2px] bg-red-500 rounded-full"
-                            style={{ width: `${lineProgress * 100}%` }}
-                        />
-                    )}
+                    <div
+                        className="absolute bottom-0 left-0 h-[2px] bg-red-500 rounded-full"
+                        style={{ width: `${lineProgress * 100}%` }}
+                    />
                 </div>
             )}
             <div className="relative font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
