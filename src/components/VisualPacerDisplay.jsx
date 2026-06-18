@@ -31,6 +31,12 @@ function getFirstRect(el) {
     return el.getClientRects()[0] ?? el.getBoundingClientRect();
 }
 
+const WINDOW_BEFORE_WORDS = 700;
+const WINDOW_AFTER_WORDS = 900;
+const WINDOW_SHIFT_WORDS = 300;
+const ESTIMATED_WORDS_PER_VISUAL_LINE = 10;
+const ESTIMATED_LINE_HEIGHT_PX = 36;
+
 const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
@@ -52,16 +58,64 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             const paraLines = para.split(/\n/);
             for (const line of paraLines) {
                 const lineWords = parseTextToWords(line);
+                const startIndex = wordIdx;
                 const lineData = {
+                    startIndex,
+                    endIndex: startIndex + lineWords.length - 1,
                     words: lineWords.map((w) => ({ text: w, globalIndex: wordIdx++ })),
                 };
                 result.push(lineData);
             }
             // Add a blank line between paragraphs
-            result.push({ words: [], isBlank: true });
+            result.push({ words: [], isBlank: true, startIndex: wordIdx, endIndex: wordIdx - 1 });
         }
         return result;
     }, [text]);
+
+    const totalWords = useMemo(() => {
+        const lastLineWithWords = [...lines].reverse().find((line) => line.words.length > 0);
+        return lastLineWithWords ? lastLineWithWords.endIndex + 1 : 0;
+    }, [lines]);
+
+    const renderWindow = useMemo(() => {
+        if (!totalWords) return { start: 0, end: 0 };
+
+        const idealStart = Math.max(0, currentIndex - WINDOW_BEFORE_WORDS);
+        const blockStart = Math.floor(idealStart / WINDOW_SHIFT_WORDS) * WINDOW_SHIFT_WORDS;
+        const start = Math.min(blockStart, Math.max(0, totalWords - WINDOW_BEFORE_WORDS - WINDOW_AFTER_WORDS - 1));
+        const end = Math.min(totalWords - 1, start + WINDOW_BEFORE_WORDS + WINDOW_AFTER_WORDS);
+
+        return { start, end };
+    }, [currentIndex, totalWords]);
+
+    const visibleLines = useMemo(() => {
+        if (!lines.length) return [];
+
+        return lines.reduce((result, line, lineIdx) => {
+            if (line.isBlank) {
+                if (line.startIndex >= renderWindow.start && line.startIndex <= renderWindow.end) {
+                    result.push({ ...line, lineIdx });
+                }
+                return result;
+            }
+
+            if (line.endIndex < renderWindow.start || line.startIndex > renderWindow.end) {
+                return result;
+            }
+
+            result.push({
+                ...line,
+                lineIdx,
+                words: line.words.filter((word) => (
+                    word.globalIndex >= renderWindow.start && word.globalIndex <= renderWindow.end
+                )),
+            });
+            return result;
+        }, []);
+    }, [lines, renderWindow.start, renderWindow.end]);
+
+    const topSpacerHeight = Math.floor(renderWindow.start / ESTIMATED_WORDS_PER_VISUAL_LINE) * ESTIMATED_LINE_HEIGHT_PX;
+    const bottomSpacerHeight = Math.floor(Math.max(totalWords - renderWindow.end - 1, 0) / ESTIMATED_WORDS_PER_VISUAL_LINE) * ESTIMATED_LINE_HEIGHT_PX;
 
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
@@ -149,7 +203,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             if (observer) observer.disconnect();
             else window.removeEventListener('resize', scheduleMeasure);
         };
-    }, [currentIndex, pacerStyle, text]);
+    }, [currentIndex, pacerStyle, visibleLines]);
 
     // Auto-scroll once the active word would move below the top quarter.
     useEffect(() => {
@@ -218,15 +272,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 </div>
             )}
             <div className="relative font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
-                {lines.map((line, lineIdx) => {
+                {topSpacerHeight > 0 && <div style={{ height: `${topSpacerHeight}px` }} aria-hidden="true" />}
+                {visibleLines.map((line) => {
                     if (line.isBlank) {
-                        return <div key={`blank-${lineIdx}`} className="h-6" />;
+                        return <div key={`blank-${line.lineIdx}`} className="h-6" />;
                     }
 
                     return (
                         <div
-                            key={`line-${lineIdx}`}
-                            data-line-index={lineIdx}
+                            key={`line-${line.lineIdx}`}
+                            data-line-index={line.lineIdx}
                             className="relative px-2 py-1 rounded transition-colors duration-150"
                         >
                             <span>
@@ -276,6 +331,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                         </div>
                     );
                 })}
+                {bottomSpacerHeight > 0 && <div style={{ height: `${bottomSpacerHeight}px` }} aria-hidden="true" />}
             </div>
         </div>
     );
