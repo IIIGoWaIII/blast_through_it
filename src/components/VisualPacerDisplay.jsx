@@ -163,6 +163,12 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                     aria-hidden="true"
                 >
                     <div className="absolute inset-y-0 left-0 w-1 bg-red-500 rounded-r" />
+                    {isPlaying && (
+                        <div
+                            className="absolute bottom-0 left-0 h-[2px] bg-red-500 rounded-full"
+                            style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
+                        />
+                    )}
                 </div>
             )}
             <div className="relative font-serif text-lg md:text-xl leading-relaxed tracking-wide space-y-1">
@@ -205,7 +211,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                                 className={wordClass}
                                             >
                                                 {word.text}
-                                                {isCurrentWord && isPlaying && (
+                                                {pacerStyle === 'word' && isCurrentWord && isPlaying && (
                                                     <span
                                                         className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
                                                         style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
