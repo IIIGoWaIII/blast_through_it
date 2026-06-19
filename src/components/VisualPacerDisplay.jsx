@@ -47,9 +47,9 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
-    const previousHighlightWindowStartRef = useRef(null);
+    const prevTopSpacerRef = useRef(0);
     const useInstantScroll = useMemo(() => isMobile(), []);
-    const [shouldAnimateHighlight, setShouldAnimateHighlight] = useState(true);
+    const [measuredLineHeight, setMeasuredLineHeight] = useState(ESTIMATED_LINE_HEIGHT_PX);
     const [lineHighlight, setLineHighlight] = useState(null);
 
     useEffect(() => {
@@ -124,8 +124,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         }, []);
     }, [lines, renderWindow.start, renderWindow.end]);
 
-    const topSpacerHeight = Math.floor(renderWindow.start / ESTIMATED_WORDS_PER_VISUAL_LINE) * ESTIMATED_LINE_HEIGHT_PX;
-    const bottomSpacerHeight = Math.floor(Math.max(totalWords - renderWindow.end - 1, 0) / ESTIMATED_WORDS_PER_VISUAL_LINE) * ESTIMATED_LINE_HEIGHT_PX;
+    const topSpacerHeight = Math.floor(renderWindow.start / ESTIMATED_WORDS_PER_VISUAL_LINE) * measuredLineHeight;
+    const bottomSpacerHeight = Math.floor(Math.max(totalWords - renderWindow.end - 1, 0) / ESTIMATED_WORDS_PER_VISUAL_LINE) * measuredLineHeight;
 
     useLayoutEffect(() => {
         if (pacerStyle !== 'line' || !containerRef.current) {
@@ -144,18 +144,18 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 return;
             }
 
-            const windowChanged = previousHighlightWindowStartRef.current !== renderWindow.start;
-            previousHighlightWindowStartRef.current = renderWindow.start;
-            setShouldAnimateHighlight(!windowChanged);
-
             const containerRect = container.getBoundingClientRect();
             const elRect = getFirstRect(currentEl);
             const currentCenter = elRect.top + (elRect.height / 2);
-            const sameLineWordEls = Array.from(container.querySelectorAll('[data-word-index]'))
-                .filter((wordEl) => {
-                    const rect = getFirstRect(wordEl);
-                    return currentCenter >= rect.top && currentCenter <= rect.bottom;
-                });
+            const sameLineWordEls = (() => {
+                const lineEl = currentEl.closest('[data-line-index]');
+                if (!lineEl) return [];
+                return Array.from(lineEl.querySelectorAll('[data-word-index]'))
+                    .filter((wordEl) => {
+                        const rect = getFirstRect(wordEl);
+                        return currentCenter >= rect.top && currentCenter <= rect.bottom;
+                    });
+            })();
             const sameLineWords = sameLineWordEls
                 .map((wordEl) => Number(wordEl.dataset.wordIndex))
                 .filter(Number.isFinite);
@@ -219,8 +219,28 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         };
     }, [currentIndex, pacerStyle, visibleLines, renderWindow.start]);
 
+    // Measure actual rendered line heights to replace static ESTIMATED_LINE_HEIGHT_PX.
+    // This adapts to the device's font size, container width, and word wrapping.
+    useLayoutEffect(() => {
+        if (!containerRef.current) return;
+        const lineEls = containerRef.current.querySelectorAll('[data-line-index]');
+        if (lineEls.length === 0) return;
+
+        let totalHeight = 0;
+        let count = 0;
+        lineEls.forEach((el) => {
+            totalHeight += el.offsetHeight;
+            count++;
+        });
+
+        if (count > 0) {
+            setMeasuredLineHeight(Math.round(totalHeight / count));
+        }
+    }, [renderWindow.start, renderWindow.end]);
+
     // Auto-scroll once the active word would move below the top quarter.
-    // When the render window moves, correct scrollTop before paint to avoid a visible jump.
+    // When the render window shifts, correct scrollTop by the spacer delta to preserve
+    // the word's screen position — making the shift invisible.
     useLayoutEffect(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
@@ -228,12 +248,26 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
         if (!currentEl) return;
 
+        const windowChanged = previousWindowStartRef.current !== renderWindow.start;
+        previousWindowStartRef.current = renderWindow.start;
+
+        // Anchor-based correction: when the window shifts, the top spacer height changes,
+        // which shifts all content vertically. Compensate by adjusting scrollTop by the
+        // exact spacer delta so the current word stays at the same screen position.
+        if (windowChanged) {
+            const spacerDelta = topSpacerHeight - prevTopSpacerRef.current;
+            if (Math.abs(spacerDelta) > 0.5) {
+                cancelScrollAnimation(scrollAnimationRef);
+                container.scrollTop += spacerDelta;
+            }
+        }
+        prevTopSpacerRef.current = topSpacerHeight;
+
+        // Normal scroll behavior: keep the active word above the bottom half.
         const containerRect = container.getBoundingClientRect();
         const elRect = currentEl.getBoundingClientRect();
         const thresholdTop = container.clientHeight * 0.25;
         const currentTop = elRect.top - containerRect.top;
-        const windowChanged = previousWindowStartRef.current !== renderWindow.start;
-        previousWindowStartRef.current = renderWindow.start;
 
         if (currentTop <= thresholdTop && currentTop >= 0) return;
 
@@ -242,13 +276,13 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         const clamped = Math.max(0, Math.min(targetScrollTop, maxScroll));
 
         if (windowChanged) {
-            cancelScrollAnimation(scrollAnimationRef);
+            // After anchor correction, snap to threshold if word is still out of bounds
             container.scrollTop = clamped;
             return;
         }
 
         smoothScrollTo(container, clamped, scrollAnimationRef, useInstantScroll ? 0 : 250);
-    }, [currentIndex, renderWindow.start, useInstantScroll]);
+    }, [currentIndex, renderWindow.start, useInstantScroll, topSpacerHeight]);
 
     const lineProgress = useMemo(() => {
         if (!lineHighlight) return 0;
@@ -282,9 +316,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         >
             {lineHighlight && (
                 <div
-                    className={`absolute bg-red-500/15 rounded pointer-events-none ${
-                        shouldAnimateHighlight ? 'transition-[left,top,width,height] duration-150' : ''
-                    }`}
+                    className="absolute bg-red-500/15 rounded pointer-events-none transition-[left,top,width,height] duration-150"
                     style={{
                         left: `${lineHighlight.left}px`,
                         top: `${lineHighlight.top}px`,
