@@ -292,8 +292,9 @@ function App() {
             />
 
             {/* Progress Stats */}
-            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 transition-opacity duration-300 ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
-              Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}% Complete • {totalTime}
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold text-zinc-600 transition-opacity duration-300 text-center ${nightMode ? 'opacity-5 hover:opacity-100' : ''}`}>
+              <div>Word {currentIndex + 1} of {words.length} • {Math.round(currentProgress)}%</div>
+              <div>Complete • {totalTime}</div>
             </div>
           </div>
         )}
