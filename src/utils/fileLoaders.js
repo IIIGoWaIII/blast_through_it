@@ -216,6 +216,38 @@ export const extractEpubChaptersText = async (file, chapters) => {
 };
 
 /**
+ * Extracts text from each chapter separately, returning per-chapter texts.
+ * @param {File} file
+ * @param {{hrefs: string[]}[]} chapters
+ * @returns {Promise<string[]>}
+ */
+export const extractEpubPerChapterTexts = async (file, chapters) => {
+    const ePub = (await import('epubjs')).default;
+    const arrayBuffer = await file.arrayBuffer();
+    const book = ePub(arrayBuffer);
+    await book.ready;
+
+    const results = [];
+    for (const chapter of chapters) {
+        const parts = [];
+        for (const href of chapter.hrefs) {
+            try {
+                const doc = await book.load(href);
+                if (doc && doc.body) {
+                    parts.push(extractTextFromEpubBody(doc.body));
+                }
+            } catch {
+                // Skip sections that fail to load
+            }
+        }
+        results.push(parts.join('\n\n'));
+    }
+
+    book.destroy();
+    return results;
+};
+
+/**
  * Extracts all text from every chapter of an EPUB file.
  * Used as fallback when loadFileContent is called directly.
  * @param {File} file

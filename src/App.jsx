@@ -6,6 +6,7 @@ import InputArea from './components/InputArea';
 import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime } from './utils/textParser';
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify, isMobile } from './utils/device';
+import { saveProgress } from './utils/epubProgress';
 
 function loadSettings() {
   try {
@@ -33,6 +34,10 @@ function App() {
   const [readingMode, setReadingMode] = useState(settings.readingMode ?? 'rsvp'); // 'rsvp' or 'visualPacer'
   const [pacerStyle, setPacerStyle] = useState(settings.pacerStyle ?? 'line'); // 'line' or 'word'
   const [wordProgress, setWordProgress] = useState({ index: 0, value: 0 });
+  const [epubBookKey, setEpubBookKey] = useState(null);
+  const [epubTitle, setEpubTitle] = useState(null);
+  const [epubSelectedChapters, setEpubSelectedChapters] = useState(null);
+  const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState(null);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
@@ -46,13 +51,29 @@ function App() {
     localStorage.setItem('blast-settings', JSON.stringify({ wpm, readingMode, pacerStyle }));
   }, [wpm, readingMode, pacerStyle]);
 
+  // Save EPUB reading progress whenever index changes in reader mode
+  useEffect(() => {
+    if (!epubBookKey || words.length === 0 || mode !== 'reader') return;
+    saveProgress(epubBookKey, {
+      wordIndex: currentIndex,
+      totalWords: words.length,
+      title: epubTitle,
+      selectedChapters: epubSelectedChapters,
+      selectedChapterNames: epubSelectedChapterNames,
+    });
+  }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
+
   // Handle text submission from InputArea
-  const handleTextSubmit = (submittedText) => {
+  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames) => {
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
       setText(submittedText);
-      setCurrentIndex(0);
+      setCurrentIndex(typeof savedIndex === 'number' ? Math.min(savedIndex, parsedWords.length - 1) : 0);
+      setEpubBookKey(bookKey || null);
+      setEpubTitle(title || null);
+      setEpubSelectedChapters(selectedChapters || null);
+      setEpubSelectedChapterNames(selectedChapterNames || null);
       setMode('reader');
     }
   };

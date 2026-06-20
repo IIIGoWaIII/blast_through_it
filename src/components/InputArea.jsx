@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Upload, X, BookOpen, CheckSquare, Square } from 'lucide-react';
+import { Upload, X, BookOpen, CheckSquare, Square, RotateCcw } from 'lucide-react';
 import { loadFileContent, parseEpubChapters, extractEpubChaptersText } from '../utils/fileLoaders';
 import { shouldSimplify } from '../utils/device';
+import { getBookKey, getProgress } from '../utils/epubProgress';
 
 const InputArea = ({ onTextSubmit }) => {
     const [text, setText] = useState('');
@@ -12,6 +13,8 @@ const InputArea = ({ onTextSubmit }) => {
     const [epubFile, setEpubFile] = useState(null);
     const [selectedChapters, setSelectedChapters] = useState(new Set());
     const [isExtracting, setIsExtracting] = useState(false);
+    const [resumeInfo, setResumeInfo] = useState(null);
+    const [epubBookKey, setEpubBookKey] = useState(null);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
@@ -26,6 +29,11 @@ const InputArea = ({ onTextSubmit }) => {
                 setEpubFile(file);
                 setSelectedChapters(new Set(data.chapters.map((_, i) => i)));
                 setText('');
+
+                const bookKey = getBookKey(file, data);
+                setEpubBookKey(bookKey);
+                const saved = getProgress(bookKey);
+                setResumeInfo(saved);
             } else {
                 const content = await loadFileContent(file);
                 setText(content);
@@ -40,13 +48,16 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
-    const handleEpubSubmit = async () => {
+    const handleEpubSubmit = async (resumeWordIndex) => {
         if (!epubFile || selectedChapters.size === 0) return;
         setIsExtracting(true);
         try {
             const selected = Array.from(selectedChapters).map(i => epubData.chapters[i]);
             const text = await extractEpubChaptersText(epubFile, selected);
-            onTextSubmit(text);
+            const resumeIdx = typeof resumeWordIndex === 'number' ? resumeWordIndex : undefined;
+            const selectedList = Array.from(selectedChapters).sort((a, b) => a - b);
+            const selectedNames = selectedList.map(i => epubData.chapters[i]?.label || `Chapter ${i + 1}`);
+            onTextSubmit(text, resumeIdx, epubBookKey, epubData.title, selectedList, selectedNames);
         } catch (error) {
             console.error('Error extracting EPUB text:', error);
             alert('Failed to extract text from EPUB.');
@@ -77,6 +88,8 @@ const InputArea = ({ onTextSubmit }) => {
         setEpubData(null);
         setEpubFile(null);
         setSelectedChapters(new Set());
+        setResumeInfo(null);
+        setEpubBookKey(null);
     };
 
     const totalWords = epubData
@@ -128,6 +141,52 @@ const InputArea = ({ onTextSubmit }) => {
                                 <X size={16} />
                             </button>
                         </div>
+
+                        {resumeInfo && (
+                            <div className="flex flex-col gap-3 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <RotateCcw size={18} className="text-red-400 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-zinc-200">
+                                            Resume reading?
+                                        </p>
+                                        <p className="text-xs text-zinc-500 truncate">
+                                            <span className="text-zinc-400">
+                                                {resumeInfo.selectedChapterNames?.length === 1
+                                                    ? resumeInfo.selectedChapterNames[0]
+                                                    : resumeInfo.selectedChapterNames?.length > 1
+                                                        ? resumeInfo.selectedChapterNames.join(', ')
+                                                        : resumeInfo.selectedChapters?.length > 0
+                                                            ? `${resumeInfo.selectedChapters.length} chapters`
+                                                            : 'All chapters'}
+                                            </span>
+                                            {' · '}
+                                            Word {resumeInfo.wordIndex.toLocaleString()} of {resumeInfo.totalWords.toLocaleString()} ({Math.round((resumeInfo.wordIndex / resumeInfo.totalWords) * 100)}%)
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            if (resumeInfo.selectedChapters) {
+                                                setSelectedChapters(new Set(resumeInfo.selectedChapters));
+                                            }
+                                            handleEpubSubmit(resumeInfo.wordIndex);
+                                        }}
+                                        disabled={isExtracting}
+                                        className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all"
+                                    >
+                                        Resume
+                                    </button>
+                                    <button
+                                        onClick={() => setResumeInfo(null)}
+                                        className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold rounded-lg transition-all"
+                                    >
+                                        Start Fresh
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between">
                             <button
