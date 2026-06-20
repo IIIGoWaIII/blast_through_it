@@ -48,14 +48,16 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
-    const handleEpubSubmit = async (resumeWordIndex) => {
-        if (!epubFile || selectedChapters.size === 0) return;
+    const handleEpubSubmit = async (resumeWordIndex, resumeChapterIndices) => {
+        if (!epubFile) return;
+        const chaptersToUse = resumeChapterIndices || Array.from(selectedChapters);
+        if (chaptersToUse.length === 0) return;
         setIsExtracting(true);
         try {
-            const selected = Array.from(selectedChapters).map(i => epubData.chapters[i]);
+            const selected = chaptersToUse.map(i => epubData.chapters[i]);
             const text = await extractEpubChaptersText(epubFile, selected);
             const resumeIdx = typeof resumeWordIndex === 'number' ? resumeWordIndex : undefined;
-            const selectedList = Array.from(selectedChapters).sort((a, b) => a - b);
+            const selectedList = chaptersToUse.sort((a, b) => a - b);
             const selectedNames = selectedList.map(i => epubData.chapters[i]?.label || `Chapter ${i + 1}`);
             onTextSubmit(text, resumeIdx, epubBookKey, epubData.title, selectedList, selectedNames);
         } catch (error) {
@@ -168,10 +170,7 @@ const InputArea = ({ onTextSubmit }) => {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => {
-                                            if (resumeInfo.selectedChapters) {
-                                                setSelectedChapters(new Set(resumeInfo.selectedChapters));
-                                            }
-                                            handleEpubSubmit(resumeInfo.wordIndex);
+                                            handleEpubSubmit(resumeInfo.wordIndex, resumeInfo.selectedChapters);
                                         }}
                                         disabled={isExtracting}
                                         className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all"
