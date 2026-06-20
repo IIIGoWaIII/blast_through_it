@@ -58,21 +58,24 @@ export const getPauseForWord = (word, wpm) => {
         ratio += COMMA_RATIO;
     }
 
-    // Trailing punctuation
-    const trailingMatch = word.match(/[.;:!,)""']+$/);
+    // Ellipsis (...)
+    const hasEllipsis = /\.\.\./.test(word);
+    if (hasEllipsis) {
+        ratio += ELLIPSIS_RATIO;
+    }
+
+    // Trailing punctuation (skip dots if ellipsis already handled)
+    const trailingMatch = word.match(/[.;:!?!,)""']+$/);
     if (trailingMatch) {
         for (const char of trailingMatch[0]) {
-            if (char === '.' || char === ';' || char === '!' || char === '?') {
+            if (char === '.' && hasEllipsis) {
+                continue;
+            } else if (char === '.' || char === ';' || char === '!' || char === '?') {
                 ratio += SENTENCE_END_RATIO;
             } else {
                 ratio += COMMA_RATIO;
             }
         }
-    }
-
-    // Ellipsis (...)
-    if (/\.\.\./.test(word)) {
-        ratio += ELLIPSIS_RATIO;
     }
 
     // Special characters: * % $ # @ /
