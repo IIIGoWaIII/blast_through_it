@@ -15,7 +15,8 @@ const ControlBar = ({
     nightMode,
     totalWords,
     currentIndex,
-    onJumpToWord
+    onJumpToWord,
+    effectiveWpm
 }) => {
     const [jumpValue, setJumpValue] = React.useState('');
 
@@ -97,10 +98,11 @@ const ControlBar = ({
                         <FastForward size={24} className="md:w-5 md:h-5" fill="currentColor" />
                     </button>
 
-                    <div className="hidden md:flex items-center gap-3">
+                    <div className="hidden md:flex flex-col items-center gap-0.5">
                         <span className="text-2xl md:text-3xl font-bold tracking-tighter italic text-zinc-300 min-w-[3ch] text-center">
-                            {wpm} <span className="text-xs md:text-sm not-italic opacity-50 uppercase tracking-widest ml-1">wpm</span>
+                            {wpm} <span className="text-xs md:text-sm not-italic opacity-50 uppercase tracking-widest ml-1">tempo</span>
                         </span>
+                        <span className="text-[10px] text-zinc-500 tracking-wide">{effectiveWpm} effective wpm</span>
                     </div>
                 </div>
 
@@ -119,7 +121,8 @@ const ControlBar = ({
                             <span className="text-4xl sm:text-5xl font-black tracking-tighter italic text-white">
                                 {wpm}
                             </span>
-                            <span className="text-[10px] sm:text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Words Per Minute</span>
+                            <span className="text-[10px] sm:text-xs font-bold opacity-40 uppercase mx-5 tracking-[0.3em] mt-1 text-zinc-400">Tempo</span>
+                            <span className="text-[10px] text-zinc-500 tracking-wide mt-0.5">{effectiveWpm} effective wpm</span>
                         </div>
 
                         <button

@@ -185,7 +185,9 @@ function App() {
 
   const wordsPerLine = useMemo(() => isMobile() ? 4 : 10, []);
 
-  const totalTime = formatTime(calculateReadingTime(words, wpm, lineStarts, wordsPerLine));
+  const totalReadingSeconds = calculateReadingTime(words, wpm, lineStarts, wordsPerLine);
+  const totalTime = formatTime(totalReadingSeconds);
+  const effectiveWpm = totalReadingSeconds > 0 ? Math.round(words.length / (totalReadingSeconds / 60)) : wpm;
   const remainingLineStarts = useMemo(() => {
     const adjusted = new Set();
     for (const idx of lineStarts) {
@@ -328,6 +330,7 @@ function App() {
               totalWords={words.length}
               currentIndex={currentIndex}
               onJumpToWord={handleJumpToWord}
+              effectiveWpm={effectiveWpm}
             />
 
             {/* Progress Stats */}
