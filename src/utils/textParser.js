@@ -89,16 +89,40 @@ export const getPauseForWord = (word, wpm) => {
  * Accounts for punctuation pauses and line change delays.
  * @param {string[]} words
  * @param {number} wpm
- * @param {Set<number>} [lineStarts] - word indices that start a new visual line
+ * @param {Set<number>} [lineStarts] - word indices that start a new source line
+ * @param {number} [wordsPerLine] - estimated words per visual line (for wrap estimation)
  * @returns {number} seconds
  */
-export const calculateReadingTime = (words, wpm, lineStarts) => {
+export const calculateReadingTime = (words, wpm, lineStarts, wordsPerLine) => {
     if (!words.length || wpm <= 0) return 0;
     const baseDelayPerWord = (60 / wpm) * 1000;
     const lineChangeRatio = 5;
+
+    // Build set of visual line starts by estimating wraps within each source line
+    const visualLineStarts = new Set();
+    if (lineStarts && wordsPerLine && wordsPerLine > 0) {
+        const sortedStarts = [...lineStarts].sort((a, b) => a - b);
+        for (const start of sortedStarts) {
+            // Find next source line start (or end of words)
+            const nextStart = sortedStarts.find(s => s > start) ?? words.length;
+            const sourceLineWordCount = nextStart - start;
+            const wraps = Math.ceil(sourceLineWordCount / wordsPerLine);
+            for (let w = 0; w < wraps; w++) {
+                const idx = start + w * wordsPerLine;
+                if (idx < words.length) {
+                    visualLineStarts.add(idx);
+                }
+            }
+        }
+    } else if (lineStarts) {
+        for (const idx of lineStarts) {
+            visualLineStarts.add(idx);
+        }
+    }
+
     const totalMs = words.reduce((sum, word, i) => {
         let wordDelay = baseDelayPerWord + getPauseForWord(word, wpm);
-        if (lineStarts && lineStarts.has(i)) {
+        if (visualLineStarts.has(i) && i !== 0) {
             wordDelay += baseDelayPerWord * lineChangeRatio;
         }
         return sum + wordDelay;

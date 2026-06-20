@@ -7,8 +7,11 @@
 - **Multi-format Support**: Paste raw text or upload files (`.txt`, `.pdf`, `.docx`).
 - **RSVP Reading**: Display words one by one at high speeds to eliminate subvocalization.
 - **Optimal Recognition Point (ORP)**: Centered highlighting for faster word recognition.
-- **Adjustable Speed**: Precise control over words-per-minute (WPM).
+- **Adjustable Speed**: Precise control over reading pace.
+- **Visual Pacer**: Animated guide that helps maintain focus and rhythm during reading sessions.
 - **Modern UI**: Clean, responsive design built with Tailwind CSS.
+
+> **Note on WPM**: Traditional words-per-minute metrics don't capture the reading experience accurately. The app includes strategic pauses and pacing that make reading smoother and more comfortable, so effective reading speed differs from raw WPM.
 
 ## 🛠️ Tech Stack
 

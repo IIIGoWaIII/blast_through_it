@@ -5,7 +5,7 @@ import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
 import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime } from './utils/textParser';
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
-import { shouldSimplify } from './utils/device';
+import { shouldSimplify, isMobile } from './utils/device';
 
 function loadSettings() {
   try {
@@ -162,7 +162,9 @@ function App() {
   const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
   const activeWordProgress = wordProgress.index === currentIndex ? wordProgress.value : 0;
 
-  const totalTime = formatTime(calculateReadingTime(words, wpm, lineStarts));
+  const wordsPerLine = useMemo(() => isMobile() ? 4 : 10, []);
+
+  const totalTime = formatTime(calculateReadingTime(words, wpm, lineStarts, wordsPerLine));
   const remainingLineStarts = useMemo(() => {
     const adjusted = new Set();
     for (const idx of lineStarts) {
@@ -172,7 +174,7 @@ function App() {
     }
     return adjusted;
   }, [lineStarts, currentIndex]);
-  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm, remainingLineStarts));
+  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm, remainingLineStarts, wordsPerLine));
 
   const bgBlur = simplified ? '' : 'blur-[120px]';
   const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
