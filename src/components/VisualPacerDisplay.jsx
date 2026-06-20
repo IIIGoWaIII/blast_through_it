@@ -43,7 +43,7 @@ const WINDOW_SHIFT_WORDS = 300;
 const ESTIMATED_WORDS_PER_VISUAL_LINE = 10;
 const ESTIMATED_LINE_HEIGHT_PX = 36;
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
@@ -180,6 +180,10 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 wordBounds,
             };
 
+            if (lineStartRef) {
+                lineStartRef.current = nextHighlight.startIndex;
+            }
+
             setLineHighlight((prev) => {
                 if (
                     prev
@@ -217,7 +221,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             if (observer) observer.disconnect();
             else window.removeEventListener('resize', scheduleMeasure);
         };
-    }, [currentIndex, pacerStyle, visibleLines, renderWindow.start]);
+    }, [currentIndex, pacerStyle, visibleLines, renderWindow.start, lineStartRef]);
 
     // Measure actual rendered line heights to replace static ESTIMATED_LINE_HEIGHT_PX.
     // This adapts to the device's font size, container width, and word wrapping.

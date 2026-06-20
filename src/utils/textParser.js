@@ -32,11 +32,14 @@ export const getOrpIndex = (word) => {
 const SENTENCE_END_RATIO = 2.5; // . ! ? ;
 const COMMA_RATIO = 1.25;       // , : ( ) " "
 const MID_SENTENCE_RATIO = 5;   // mid-word punctuation (e.g. "said.She")
+const SPECIAL_CHAR_RATIO = 2;   // * % $ # @ /
+const ELLIPSIS_RATIO = 4;       // ...
 const PARAGRAPH_RATIO = 3;      // new paragraph start
 
 /**
  * Returns extra pause in ms, scaled by WPM.
  * Mid-word punctuation (e.g. "said.She") gets a larger pause.
+ * Special characters (? * % $ # @ ! /) trigger a pause.
  * @param {string} word
  * @param {number} wpm
  * @returns {number}
@@ -67,20 +70,39 @@ export const getPauseForWord = (word, wpm) => {
         }
     }
 
+    // Ellipsis (...)
+    if (/\.\.\./.test(word)) {
+        ratio += ELLIPSIS_RATIO;
+    }
+
+    // Special characters: * % $ # @ /
+    const specialChars = word.match(/[*%$#@!/]/g);
+    if (specialChars) {
+        ratio += SPECIAL_CHAR_RATIO;
+    }
+
     return ratio * baseDelay;
 };
 
 /**
  * Calculates total reading time in seconds for a list of words at a given WPM.
- * Accounts for punctuation pauses.
+ * Accounts for punctuation pauses and line change delays.
  * @param {string[]} words
  * @param {number} wpm
+ * @param {Set<number>} [lineStarts] - word indices that start a new visual line
  * @returns {number} seconds
  */
-export const calculateReadingTime = (words, wpm) => {
+export const calculateReadingTime = (words, wpm, lineStarts) => {
     if (!words.length || wpm <= 0) return 0;
     const baseDelayPerWord = (60 / wpm) * 1000;
-    const totalMs = words.reduce((sum, word) => sum + baseDelayPerWord + getPauseForWord(word, wpm), 0);
+    const lineChangeRatio = 5;
+    const totalMs = words.reduce((sum, word, i) => {
+        let wordDelay = baseDelayPerWord + getPauseForWord(word, wpm);
+        if (lineStarts && lineStarts.has(i)) {
+            wordDelay += baseDelayPerWord * lineChangeRatio;
+        }
+        return sum + wordDelay;
+    }, 0);
     return totalMs / 1000;
 };
 
@@ -126,6 +148,31 @@ export const getNewParagraphIndices = (text, words) => {
         const processedPara = para.replace(/—/g, ' ').replace(/-/g, '- ');
         const paraWords = processedPara.trim().split(/\s+/).filter(w => w.length > 0);
         wordIdx += paraWords.length;
+    }
+
+    return indices;
+};
+
+/**
+ * Returns a Set of word indices that start a new line (single newline).
+ * @param {string} text
+ * @param {string[]} words
+ * @returns {Set<number>}
+ */
+export const getNewLineIndices = (text, words) => {
+    const indices = new Set();
+    if (!text || !words.length) return indices;
+
+    const lines = text.split(/\n/);
+    let wordIdx = 0;
+
+    for (const line of lines) {
+        if (wordIdx < words.length) {
+            indices.add(wordIdx);
+        }
+        const processedLine = line.replace(/—/g, ' ').replace(/-/g, '- ');
+        const lineWords = processedLine.trim().split(/\s+/).filter(w => w.length > 0);
+        wordIdx += lineWords.length;
     }
 
     return indices;

@@ -3,7 +3,7 @@ import ReaderDisplay from './components/ReaderDisplay';
 import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
-import { parseTextToWords, getPauseForWord, getNewParagraphIndices, calculateReadingTime, formatTime } from './utils/textParser';
+import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime } from './utils/textParser';
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify } from './utils/device';
 
@@ -35,8 +35,11 @@ function App() {
   const [wordProgress, setWordProgress] = useState({ index: 0, value: 0 });
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
+  const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
 
   const animationRef = useRef(null);
+  const currentLineStartRef = useRef(-1);
+  const prevLineStartRef = useRef(-1);
 
   // Persist reading settings
   useEffect(() => {
@@ -63,7 +66,10 @@ function App() {
     if (currentIndex >= words.length - 1) return undefined;
 
     const baseDelay = (60 / wpm) * 1000;
-    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0);
+    const hasLineChange = readingMode === 'visualPacer' && currentLineStartRef.current !== -1 && currentLineStartRef.current !== prevLineStartRef.current;
+    const lineChangeDelay = hasLineChange ? baseDelay * 5 : 0;
+    prevLineStartRef.current = currentLineStartRef.current;
+    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay;
     const start = performance.now();
 
     const tick = (now) => {
@@ -86,7 +92,7 @@ function App() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isPlaying, currentIndex, words, wpm, paragraphStarts]);
+  }, [isPlaying, currentIndex, words, wpm, paragraphStarts, readingMode]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -156,8 +162,17 @@ function App() {
   const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
   const activeWordProgress = wordProgress.index === currentIndex ? wordProgress.value : 0;
 
-  const totalTime = formatTime(calculateReadingTime(words, wpm));
-  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm));
+  const totalTime = formatTime(calculateReadingTime(words, wpm, lineStarts));
+  const remainingLineStarts = useMemo(() => {
+    const adjusted = new Set();
+    for (const idx of lineStarts) {
+      if (idx >= currentIndex) {
+        adjusted.add(idx - currentIndex);
+      }
+    }
+    return adjusted;
+  }, [lineStarts, currentIndex]);
+  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm, remainingLineStarts));
 
   const bgBlur = simplified ? '' : 'blur-[120px]';
   const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
@@ -261,6 +276,7 @@ function App() {
                 isPlaying={isPlaying}
                 wordProgress={activeWordProgress}
                 wpm={wpm}
+                lineStartRef={currentLineStartRef}
               />
             )}
 
