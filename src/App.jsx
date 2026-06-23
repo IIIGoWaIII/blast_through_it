@@ -40,6 +40,9 @@ function App() {
   const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState(null);
   const [epubImages, setEpubImages] = useState([]);
   const [epubBlockFormatting, setEpubBlockFormatting] = useState(null);
+  const [epubVisualBlocks, setEpubVisualBlocks] = useState(null);
+  const [epubBlockStyleRanges, setEpubBlockStyleRanges] = useState(null);
+  const [epubWordStyles, setEpubWordStyles] = useState(null);
   const [epubFontFaceCSS, setEpubFontFaceCSS] = useState(null);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
@@ -77,7 +80,7 @@ function App() {
   }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
 
   // Handle text submission from InputArea
-  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images, blockFormatting, fontFaceCSS) => {
+  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS) => {
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
@@ -89,6 +92,9 @@ function App() {
       setEpubSelectedChapterNames(selectedChapterNames || null);
       setEpubImages(images || []);
       setEpubBlockFormatting(blockFormatting || null);
+      setEpubVisualBlocks(visualBlocks || null);
+      setEpubBlockStyleRanges(blockStyleRanges || null);
+      setEpubWordStyles(wordStyles || null);
       setEpubFontFaceCSS(fontFaceCSS || null);
       setMode('reader');
     }
@@ -331,6 +337,9 @@ function App() {
                 lineStartRef={currentLineStartRef}
                 images={epubImages}
                 blockFormatting={epubBlockFormatting}
+                visualBlocks={epubVisualBlocks}
+                blockStyleRanges={epubBlockStyleRanges}
+                wordStyles={epubWordStyles}
               />
             )}
 

@@ -43,7 +43,32 @@ const WINDOW_SHIFT_WORDS = 300;
 const ESTIMATED_WORDS_PER_VISUAL_LINE = 10;
 const ESTIMATED_LINE_HEIGHT_PX = 36;
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting }) => {
+const BLOCK_STYLE_KEYS = new Set([
+    'textAlign',
+    'textIndent',
+    'marginTop',
+    'marginRight',
+    'marginBottom',
+    'marginLeft',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+]);
+
+const pickBlockStyle = (style = {}) => Object.fromEntries(
+    Object.entries(style).filter(([key]) => BLOCK_STYLE_KEYS.has(key)),
+);
+
+const pickInlineStyle = (style = {}) => Object.fromEntries(
+    Object.entries(style).filter(([key]) => !BLOCK_STYLE_KEYS.has(key)),
+);
+
+const findBlockStyleForWord = (blockStyleRanges, wordIndex) => (
+    blockStyleRanges?.find(range => wordIndex >= range.start && wordIndex <= range.end)?.style || null
+);
+
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
@@ -59,6 +84,39 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     // Parse text into structured source rows with word index tracking.
     // Visual line mode measures rendered rows below, so wrapped text follows the device width.
     const lines = useMemo(() => {
+        if (visualBlocks?.length) {
+            const result = [];
+
+            for (let blockIdx = 0; blockIdx < visualBlocks.length; blockIdx++) {
+                const block = visualBlocks[blockIdx];
+                const blockLines = block.text.split(/\n/);
+                let wordIdx = block.start;
+
+                for (const sourceLine of blockLines) {
+                    const lineWords = parseTextToWords(sourceLine);
+                    const startIndex = wordIdx;
+                    result.push({
+                        startIndex,
+                        endIndex: startIndex + lineWords.length - 1,
+                        words: lineWords.map((w) => ({ text: w, globalIndex: wordIdx++ })),
+                        paraIdx: blockIdx,
+                        blockStyle: block.style || {},
+                    });
+                }
+
+                result.push({
+                    words: [],
+                    isBlank: true,
+                    startIndex: wordIdx,
+                    endIndex: wordIdx - 1,
+                    paraIdx: blockIdx,
+                    blockStyle: block.style || {},
+                });
+            }
+
+            return result;
+        }
+
         if (!text) return [];
         const paragraphs = text.split(/\n\n+/);
         const result = [];
@@ -82,7 +140,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             result.push({ words: [], isBlank: true, startIndex: wordIdx, endIndex: wordIdx - 1, paraIdx });
         }
         return result;
-    }, [text]);
+    }, [text, visualBlocks]);
 
     const totalWords = useMemo(() => {
         const lastLineWithWords = [...lines].reverse().find((line) => line.words.length > 0);
@@ -229,19 +287,26 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     // This adapts to the device's font size, container width, and word wrapping.
     useLayoutEffect(() => {
         if (!containerRef.current) return;
-        const lineEls = containerRef.current.querySelectorAll('[data-line-index]');
-        if (lineEls.length === 0) return;
+        const frameId = requestAnimationFrame(() => {
+            const lineEls = containerRef.current?.querySelectorAll('[data-line-index]');
+            if (!lineEls || lineEls.length === 0) return;
 
-        let totalHeight = 0;
-        let count = 0;
-        lineEls.forEach((el) => {
-            totalHeight += el.offsetHeight;
-            count++;
+            let totalHeight = 0;
+            let count = 0;
+            lineEls.forEach((el) => {
+                totalHeight += el.offsetHeight;
+                count++;
+            });
+
+            if (count > 0) {
+                const nextLineHeight = Math.round(totalHeight / count);
+                setMeasuredLineHeight((prev) => (
+                    Math.abs(prev - nextLineHeight) > 0.5 ? nextLineHeight : prev
+                ));
+            }
         });
 
-        if (count > 0) {
-            setMeasuredLineHeight(Math.round(totalHeight / count));
-        }
+        return () => cancelAnimationFrame(frameId);
     }, [renderWindow.start, renderWindow.end]);
 
     // Auto-scroll once the active word would move below the top quarter.
@@ -345,11 +410,13 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                         return <div key={`blank-${line.lineIdx}`} className="h-6" />;
                     }
 
-                    const fmt = blockFormatting?.[line.paraIdx];
-                    const lineStyle = {};
-                    if (fmt?.align) lineStyle.textAlign = fmt.align;
-                    if (fmt?.fontFamily) lineStyle.fontFamily = fmt.fontFamily;
-                    if (fmt?.fontStyle) lineStyle.fontStyle = fmt.fontStyle;
+                    const firstWordStyle = wordStyles?.[line.words[0]?.globalIndex] || {};
+                    const rangeBlockStyle = findBlockStyleForWord(blockStyleRanges, line.startIndex);
+                    const lineStyle = {
+                        ...pickBlockStyle(line.blockStyle || rangeBlockStyle || blockFormatting?.[line.paraIdx]),
+                        ...(!line.blockStyle ? pickBlockStyle(firstWordStyle) : {}),
+                    };
+                    const baseInlineStyle = pickInlineStyle(line.blockStyle || {});
 
                     return (
                         <div
@@ -361,6 +428,10 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                             <span>
                                 {line.words.map((word) => {
                                     const isCurrentWord = word.globalIndex === currentIndex;
+                                    const authorStyle = {
+                                        ...baseInlineStyle,
+                                        ...pickInlineStyle(wordStyles?.[word.globalIndex]),
+                                    };
 
                                     let wordClass = '';
                                     if (pacerStyle === 'word') {
@@ -401,12 +472,16 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                                         ? `${wordClass} inline-block align-middle`
                                                         : `${wordClass} block w-full text-center my-1`;
                                                     const widthClass = layout.fullWidth ? 'w-full' : '';
-                                                    const imgStyle = layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
+                                                    const imgStyle = {
+                                                        ...authorStyle,
+                                                        ...(layout.maxWidth ? { maxWidth: layout.maxWidth } : {}),
+                                                    };
 
                                                     return (
                                                         <span
                                                             data-word-index={word.globalIndex}
                                                             className={wrapperClass}
+                                                            style={authorStyle}
                                                         >
                                                             <img
                                                                 src={src}
@@ -428,6 +503,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                                 <span
                                                     data-word-index={word.globalIndex}
                                                     className={wordClass}
+                                                    style={authorStyle}
                                                 >
                                                     {word.text}
                                                     {pacerStyle === 'word' && isCurrentWord && isPlaying && (
