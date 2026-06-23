@@ -43,7 +43,7 @@ const WINDOW_SHIFT_WORDS = 300;
 const ESTIMATED_WORDS_PER_VISUAL_LINE = 10;
 const ESTIMATED_LINE_HEIGHT_PX = 36;
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
@@ -64,7 +64,8 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         const result = [];
         let wordIdx = 0;
 
-        for (const para of paragraphs) {
+        for (let paraIdx = 0; paraIdx < paragraphs.length; paraIdx++) {
+            const para = paragraphs[paraIdx];
             const paraLines = para.split(/\n/);
             for (const line of paraLines) {
                 const lineWords = parseTextToWords(line);
@@ -73,11 +74,12 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                     startIndex,
                     endIndex: startIndex + lineWords.length - 1,
                     words: lineWords.map((w) => ({ text: w, globalIndex: wordIdx++ })),
+                    paraIdx,
                 };
                 result.push(lineData);
             }
             // Add a blank line between paragraphs
-            result.push({ words: [], isBlank: true, startIndex: wordIdx, endIndex: wordIdx - 1 });
+            result.push({ words: [], isBlank: true, startIndex: wordIdx, endIndex: wordIdx - 1, paraIdx });
         }
         return result;
     }, [text]);
@@ -343,11 +345,18 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                         return <div key={`blank-${line.lineIdx}`} className="h-6" />;
                     }
 
+                    const fmt = blockFormatting?.[line.paraIdx];
+                    const lineStyle = {};
+                    if (fmt?.align) lineStyle.textAlign = fmt.align;
+                    if (fmt?.fontFamily) lineStyle.fontFamily = fmt.fontFamily;
+                    if (fmt?.fontStyle) lineStyle.fontStyle = fmt.fontStyle;
+
                     return (
                         <div
                             key={`line-${line.lineIdx}`}
                             data-line-index={line.lineIdx}
                             className="relative px-2 py-1 rounded transition-colors duration-150"
+                            style={lineStyle}
                         >
                             <span>
                                 {line.words.map((word) => {

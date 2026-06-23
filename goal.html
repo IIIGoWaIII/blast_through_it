@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EPUB Import Goal — Reference from Readest</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #e2e8f0; background: #0f172a; }
+  h1 { color: #f43f5e; }
+  h2 { color: #fb923c; margin-top: 2rem; }
+  h3 { color: #38bdf8; }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: #1e293b; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85em; }
+  a { color: #38bdf8; }
+  ul { padding-left: 1.5rem; }
+  li { margin: 0.4rem 0; }
+  .done { color: #22c55e; }
+  .todo { color: #ef4444; }
+  .partial { color: #eab308; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #334155; }
+  th { color: #fb923c; }
+</style>
+</head>
+<body>
+
+<h1>EPUB Import — Goal &amp; Reference</h1>
+
+<p>Reference implementation: <a href="https://github.com/readest/readest">Readest</a> (21.7k stars, AGPL-3.0, built on <a href="https://github.com/johnfactotum/foliate-js">foliate-js</a>)</p>
+
+<h2>Current Status (blast_through_it)</h2>
+
+<table>
+<tr><th>Feature</th><th>Status</th><th>Notes</th></tr>
+<tr><td>EPUB chapter detection (TOC + spine)</td><td class="done">Done</td><td>parseEpubChapters</td></tr>
+<tr><td>Text extraction from XHTML body</td><td class="done">Done</td><td>extractTextFromEpubBody</td></tr>
+<tr><td>Image extraction (SVG + IMG)</td><td class="done">Done</td><td>Images embedded as data URLs</td></tr>
+<tr><td>CSS rule extraction (class selectors)</td><td class="done">Done</td><td>parseCssText handles class + tag selectors</td></tr>
+<tr><td>CSS inheritance from body</td><td class="done">Done</td><td>body classes propagate to children</td></tr>
+<tr><td>Font-face extraction</td><td class="partial">Partial</td><td>Works for root-level fonts; subdirectory paths need fix</td></tr>
+<tr><td>Font loading (TTF)</td><td class="partial">Partial</td><td>TTF works; WOFF/WOFF2 not yet handled</td></tr>
+<tr><td>Tag-name CSS selectors (h1, p, etc)</td><td class="done">Done</td><td>Added tag selector parsing</td></tr>
+<tr><td>Text-align (justify/center/right/left)</td><td class="done">Done</td><td>Applied via inline styles in VisualPacer</td></tr>
+<tr><td>Font-family application</td><td class="done">Done</td><td>Applied when @font-face loaded</td></tr>
+<tr><td>Font-style (italic)</td><td class="done">Done</td><td>Applied via inline styles</td></tr>
+<tr><td>EPUB 3 navigation</td><td class="done">Done</td><td>nav.ncx + nav.xhtml handled by epubjs</td></tr>
+<tr><td>Progress persistence</td><td class="done">Done</td><td>localStorage via epubProgress.js</td></tr>
+<tr><td>Resume reading</td><td class="done">Done</td><td>Saved per book + chapter selection</td></tr>
+<tr><td>PDF import</td><td class="done">Done</td><td>pdfjs-dist</td></tr>
+<tr><td>DOCX import</td><td class="done">Done</td><td>mammoth</td></tr>
+<tr><td>TXT import</td><td class="done">Done</td><td>FileReader</td></tr>
+</table>
+
+<h2>Known Issues</h2>
+<ol>
+<li><strong>Font path resolution:</strong> Fonts in subdirectories not found when CSS is at root. Need to resolve paths relative to CSS file location, not EPUB root.</li>
+<li><strong>WOFF/WOFF2 support:</strong> Only TTF fonts extracted. Need to handle other formats or let browser handle via @font-face.</li>
+<li><strong>Tag selector specificity:</strong> CSS specificity not handled. Later rules override earlier ones regardless of specificity.</li>
+<li><strong>Descendant selectors:</strong> Selectors like <code>.calibre_5 p</code> not parsed — only bare class or bare tag selectors.</li>
+<li><strong>CSS shorthand font property:</strong> <code>font: italic bold 16px serif</code> not decomposed into individual properties.</li>
+</ol>
+
+<h2>Readest Approach (Reference)</h2>
+
+<p>Readest uses <a href="https://github.com/johnfactotum/foliate-js">foliate-js</a> for EPUB parsing. Key patterns:</p>
+
+<h3>Architecture</h3>
+<ul>
+<li><strong>foliate-js:</strong> Pure JS EPUB/MOBI/FB2 parser — handles archive, CSS, rendering, annotations</li>
+<li><strong>zip.js:</strong> ZIP extraction (alternative to JSZip used by epubjs)</li>
+<li><strong>iframe-based rendering:</strong> Each chapter rendered in isolated iframe with full CSS support</li>
+<li><strong>CSS cascade:</strong> Natural browser CSS engine handles specificity, inheritance, @font-face</li>
+</ul>
+
+<h3>Key Differences from Our Approach</h3>
+<table>
+<tr><th>Aspect</th><th>Readest (foliate-js)</th><th>blast_through_it (epubjs)</th></tr>
+<tr><td>EPUB parsing</td><td>foliate-js (custom, lightweight)</td><td>epubjs (full-featured)</td></tr>
+<tr><td>CSS handling</td><td>Browser-native via iframe</td><td>Manual CSS rule extraction</td></tr>
+<tr><td>Font loading</td><td>Browser-native via @font-face in iframe</td><td>Extract + base64 inject</td></tr>
+<tr><td>Text extraction</td><td>DOM traversal in iframe</td><td>DOM traversal via epubjs</td></tr>
+<tr><td>Rendering</td><td>Full EPUB rendering (like a browser)</td><td>Text-only with inline formatting</td></tr>
+</table>
+
+<h3>Why Our Approach Differs</h3>
+<p>We extract text for speed-reading (RSVP / visual pacer), not full rendering. We need:</p>
+<ul>
+<li>Plain text with paragraph breaks</li>
+<li>Formatting metadata (alignment, font, italic) per paragraph</li>
+<li>Image tokens for inline images</li>
+<li>No iframe overhead — text processed in React component tree</li>
+</ul>
+
+<h2>Improvement Plan</h2>
+
+<h3>Priority 1: Fix Font Loading</h3>
+<ul>
+<li>Resolve @font-face URLs relative to CSS file location (not EPUB root)</li>
+<li>Try multiple font formats: TTF → WOFF2 → WOFF → OTF</li>
+<li>Fallback: if font not found, skip gracefully (browser default)</li>
+</ul>
+
+<h3>Priority 2: Improve CSS Selector Support</h3>
+<ul>
+<li>Handle descendant selectors: <code>.parent .child { ... }</code></li>
+<li>Handle element+class selectors: <code>p.intro { ... }</code></li>
+<li>Basic specificity: inline &gt; class &gt; tag</li>
+</ul>
+
+<h3>Priority 3: Additional Formats</h3>
+<ul>
+<li>MOBI/KF8 support (via KindleUnpack or similar)</li>
+<li>FB2 support (fictionbook XML format)</li>
+<li>CBZ support (comic book ZIP)</li>
+</ul>
+
+<h3>Priority 4: Advanced Features (from Readest)</h3>
+<ul>
+<li>Dictionary lookup (inline or popover)</li>
+<li>TTS integration</li>
+<li>Annotation/highlight system</li>
+<li>Full-text search across chapters</li>
+<li>Parallel read (split view)</li>
+</ul>
+
+<h2>Key Libraries</h2>
+<table>
+<tr><th>Library</th><th>Purpose</th><th>Our Usage</th></tr>
+<tr><td><a href="https://github.com/nicktlim/epubjs">epubjs 0.3.93</a></td><td>EPUB parsing</td><td>Archive, spine, TOC, section loading</td></tr>
+<tr><td><a href="https://github.com/nicktlim/epubjs">foliate-js</a></td><td>EPUB/MOBI parser (Readest)</td><td>Reference only — could replace epubjs</td></tr>
+<tr><td><a href="https://github.com/nicktlim/epubjs">zip.js</a></td><td>ZIP extraction (Readest)</td><td>Reference only — epubjs uses JSZip</td></tr>
+<tr><td>pdfjs-dist</td><td>PDF rendering</td><td>PDF text extraction</td></tr>
+<tr><td>mammoth</td><td>DOCX conversion</td><td>DOCX text extraction</td></tr>
+</table>
+
+<h2>Notes</h2>
+<ul>
+<li>epubjs <code>book.load(href)</code> returns an XML Document via <code>DOMParser.parseFromString(xhtml, "application/xhtml+xml")</code></li>
+<li>XHTML tag names are lowercase when parsed as XML — hence EPUB_BLOCK_TAGS includes both cases</li>
+<li><code>book.archive.getText()</code> strips leading <code>/</code> then looks up in JSZip</li>
+<li>CSS paths in <code>&lt;link&gt;</code> are relative to the XHTML file, not the EPUB root</li>
+<li>Font paths in CSS <code>url()</code> are relative to the CSS file location</li>
+</ul>
+
+</body>
+</html>

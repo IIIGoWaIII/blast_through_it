@@ -39,6 +39,8 @@ function App() {
   const [epubSelectedChapters, setEpubSelectedChapters] = useState(null);
   const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState(null);
   const [epubImages, setEpubImages] = useState([]);
+  const [epubBlockFormatting, setEpubBlockFormatting] = useState(null);
+  const [epubFontFaceCSS, setEpubFontFaceCSS] = useState(null);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
@@ -51,6 +53,16 @@ function App() {
   useEffect(() => {
     localStorage.setItem('blast-settings', JSON.stringify({ wpm, readingMode, pacerStyle }));
   }, [wpm, readingMode, pacerStyle]);
+
+  // Inject EPUB @font-face CSS into the page
+  useEffect(() => {
+    if (!epubFontFaceCSS) return;
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('data-epub-fonts', '');
+    styleEl.textContent = epubFontFaceCSS;
+    document.head.appendChild(styleEl);
+    return () => { styleEl.remove(); };
+  }, [epubFontFaceCSS]);
 
   // Save EPUB reading progress whenever index changes in reader mode
   useEffect(() => {
@@ -65,7 +77,7 @@ function App() {
   }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
 
   // Handle text submission from InputArea
-  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images) => {
+  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images, blockFormatting, fontFaceCSS) => {
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
@@ -76,6 +88,8 @@ function App() {
       setEpubSelectedChapters(selectedChapters || null);
       setEpubSelectedChapterNames(selectedChapterNames || null);
       setEpubImages(images || []);
+      setEpubBlockFormatting(blockFormatting || null);
+      setEpubFontFaceCSS(fontFaceCSS || null);
       setMode('reader');
     }
   };
@@ -316,6 +330,7 @@ function App() {
                 wpm={wpm}
                 lineStartRef={currentLineStartRef}
                 images={epubImages}
+                blockFormatting={epubBlockFormatting}
               />
             )}
 

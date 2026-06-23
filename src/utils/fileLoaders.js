@@ -48,38 +48,14 @@ export const extractTextFromTXT = async (file) => {
 };
 
 const EPUB_BLOCK_TAGS = new Set([
-    'ADDRESS',
-    'ARTICLE',
-    'ASIDE',
-    'BLOCKQUOTE',
-    'BR',
-    'DD',
-    'DIV',
-    'DL',
-    'DT',
-    'FIGCAPTION',
-    'FIGURE',
-    'FOOTER',
-    'H1',
-    'H2',
-    'H3',
-    'H4',
-    'H5',
-    'H6',
-    'HEADER',
-    'HR',
-    'LI',
-    'MAIN',
-    'NAV',
-    'OL',
-    'P',
-    'PRE',
-    'SECTION',
-    'TABLE',
-    'TD',
-    'TH',
-    'TR',
-    'UL',
+    'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'BR', 'DD', 'DIV', 'DL', 'DT',
+    'FIGCAPTION', 'FIGURE', 'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+    'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE',
+    'TD', 'TH', 'TR', 'UL',
+    'address', 'article', 'aside', 'blockquote', 'br', 'dd', 'div', 'dl', 'dt',
+    'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table',
+    'td', 'th', 'tr', 'ul',
 ]);
 
 const appendBreak = (parts) => {
@@ -101,11 +77,22 @@ const parseCssText = (cssText) => {
         expanded += ' ' + m[1];
     }
     const rules = [];
+    const fontFaces = [];
     const ruleRe = /([^{}]+)\{([^{}]+)\}/g;
     let match;
     while ((match = ruleRe.exec(expanded)) !== null) {
         const selector = match[1].trim();
         const body = match[2].trim();
+        if (selector.startsWith('@font-face')) {
+            const props = {};
+            const propRe = /([\w-]+)\s*:\s*([^;]+)/g;
+            let pm;
+            while ((pm = propRe.exec(body)) !== null) {
+                props[pm[1].trim()] = pm[2].trim();
+            }
+            fontFaces.push(props);
+            continue;
+        }
         if (selector.startsWith('@')) continue;
         const props = {};
         const propRe = /([\w-]+)\s*:\s*([^;]+)/g;
@@ -119,21 +106,32 @@ const parseCssText = (cssText) => {
         while ((cm = classRe.exec(selector)) !== null) {
             classes.push(cm[1]);
         }
-        if (classes.length > 0) {
-            rules.push({ classes, props });
+        const tagNames = [];
+        const tagRe = /(?:^|[\s,>+~])([a-zA-Z][a-zA-Z0-9]*)/g;
+        let tm;
+        while ((tm = tagRe.exec(selector)) !== null) {
+            const tag = tm[1].toLowerCase();
+            if (!['and', 'or', 'not', 'has', 'is', 'where', 'nth', 'first', 'last', 'only', 'empty', 'root'].includes(tag)) {
+                tagNames.push(tag);
+            }
+        }
+        if (classes.length > 0 || tagNames.length > 0) {
+            rules.push({ classes, tagNames, props });
         }
     }
-    return rules;
+    return { rules, fontFaces };
 };
 
 /**
  * Resolves image layout metadata from its nearest block ancestor's CSS context.
  */
-const resolveImageLayout = (parentClasses, parentInlineStyle, cssRules) => {
+const resolveImageLayout = (parentClasses, parentInlineStyle, cssRules, parentTagName) => {
     const layout = { align: 'center', maxWidth: null, fullWidth: false };
     const props = {};
     for (const rule of cssRules) {
-        if (rule.classes.some(c => parentClasses.includes(c))) {
+        const classMatch = rule.classes.some(c => parentClasses.includes(c));
+        const tagMatch = rule.tagNames && rule.tagNames.some(t => t === parentTagName?.toLowerCase());
+        if (classMatch || tagMatch) {
             Object.assign(props, rule.props);
         }
     }
@@ -188,12 +186,12 @@ const extractTextFromEpubBody = (body) => {
     const parts = [];
 
     const walk = (node) => {
-        if (node.nodeType === Node.TEXT_NODE) {
+        if (node.nodeType === 3) {
             parts.push(node.textContent.replace(/\s+/g, ' '));
             return;
         }
 
-        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        if (node.nodeType !== 1) return;
 
         const tagName = node.tagName;
         const isBlock = EPUB_BLOCK_TAGS.has(tagName);
@@ -216,6 +214,42 @@ const extractTextFromEpubBody = (body) => {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 };
+
+/**
+ * Resolves text formatting (alignment, font-family, font-style) for a block element from its CSS context.
+ */
+const resolveBlockFormatting = (classes, inlineStyle, cssRules, tagName) => {
+    const formatting = { align: null, fontFamily: null, fontStyle: null };
+    const props = {};
+    for (const rule of cssRules) {
+        const classMatch = rule.classes.some(c => classes.includes(c));
+        const tagMatch = rule.tagNames && rule.tagNames.some(t => t === tagName?.toLowerCase());
+        if (classMatch || tagMatch) {
+            Object.assign(props, rule.props);
+        }
+    }
+    if (inlineStyle) {
+        const inlineRe = /([\w-]+)\s*:\s*([^;]+)/g;
+        let m;
+        while ((m = inlineRe.exec(inlineStyle)) !== null) {
+            props[m[1].trim()] = m[2].trim();
+        }
+    }
+    if (props['text-align']) formatting.align = props['text-align'];
+    if (props['font-family']) formatting.fontFamily = props['font-family'];
+    if (props['font-style']) formatting.fontStyle = props['font-style'];
+    return formatting;
+};
+
+/**
+ * Merges inherited formatting with element-specific formatting.
+ * Element's own values override inherited ones.
+ */
+const mergeFormatting = (inherited, own) => ({
+    align: own.align || inherited.align,
+    fontFamily: own.fontFamily || inherited.fontFamily,
+    fontStyle: own.fontStyle || inherited.fontStyle,
+});
 
 /**
  * Parses an EPUB file and returns chapter metadata.
@@ -397,6 +431,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
     const images = [];
     const imageIndexBySrc = new Map();
     const cssRules = [];
+    const fontFaces = [];
     const loadedCssHrefs = new Set();
 
     const resolveImgSrc = (src, baseHref) => {
@@ -447,13 +482,30 @@ export const extractEpubContentWithImages = async (file, chapters) => {
 
     const extractTextAndImagesFromBody = async (body, baseHref) => {
         const parts = [];
+        const paraFormatting = [];
 
-        const walk = async (node, blockCtx) => {
-            if (node.nodeType === Node.TEXT_NODE) {
+        // Resolve the body's own formatting as the CSS inheritance root.
+        // In CSS, text-align, font-family, and font-style are inherited,
+        // so child elements inherit from body unless they override.
+        const bodyClasses = Array.from(body.classList || []);
+        const bodyInlineStyle = body.getAttribute('style') || '';
+        const inheritedFormatting = resolveBlockFormatting(bodyClasses, bodyInlineStyle, cssRules, body.tagName);
+
+        const pushParaBreak = () => {
+            if (parts.length > 0) {
+                const last = parts[parts.length - 1];
+                if (last === '\n\n') return;
+                if (last === '\n') { parts.push('\n'); return; }
+            }
+            parts.push('\n\n');
+        };
+
+        const walk = async (node, blockCtx, inheritedFmt) => {
+            if (node.nodeType === 3) {
                 parts.push(node.textContent.replace(/\s+/g, ' '));
                 return;
             }
-            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            if (node.nodeType !== 1) return;
 
             const tagName = node.tagName;
 
@@ -461,7 +513,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
                 const imgSrc = node.getAttribute('src');
                 if (imgSrc) {
                     const layout = blockCtx
-                        ? resolveImageLayout(blockCtx.classes, blockCtx.inlineStyle, cssRules)
+                        ? resolveImageLayout(blockCtx.classes, blockCtx.inlineStyle, cssRules, blockCtx.tagName)
                         : { align: 'center', maxWidth: null, fullWidth: false, inline: false };
                     const token = await getImageToken(imgSrc, baseHref, layout);
                     if (token) {
@@ -472,20 +524,27 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             }
 
             const isBlock = EPUB_BLOCK_TAGS.has(tagName);
-            if (isBlock) appendBreak(parts);
-
             const childCtx = isBlock
-                ? { classes: Array.from(node.classList || []), inlineStyle: node.getAttribute('style') || '' }
+                ? { classes: Array.from(node.classList || []), inlineStyle: node.getAttribute('style') || '', tagName }
                 : blockCtx;
 
-            for (const child of node.childNodes) {
-                await walk(child, childCtx);
+            if (isBlock) {
+                pushParaBreak();
+                const ownFmt = resolveBlockFormatting(childCtx.classes, childCtx.inlineStyle, cssRules, tagName);
+                const mergedFmt = mergeFormatting(inheritedFmt, ownFmt);
+                paraFormatting.push(mergedFmt);
+                for (const child of node.childNodes) {
+                    await walk(child, childCtx, mergedFmt);
+                }
+                pushParaBreak();
+            } else {
+                for (const child of node.childNodes) {
+                    await walk(child, childCtx, inheritedFmt);
+                }
             }
-
-            if (isBlock) appendBreak(parts);
         };
 
-        await walk(body, null);
+        await walk(body, null, inheritedFormatting);
 
         // Fallback: scan raw HTML for SVG <image> tags that the DOM walk misses
         // due to XML namespace issues in epubjs-loaded documents
@@ -497,7 +556,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             const before = html.substring(0, match.index);
             const tagMatch = before.match(/<(?:div|p|figure|section|td)[^>]*class="([^"]*)"[^>]*>\s*$/i);
             const parentClasses = tagMatch ? tagMatch[1].split(/\s+/) : [];
-            svgSrcs.push({ src: match[1], layout: resolveImageLayout(parentClasses, '', cssRules) });
+            svgSrcs.push({ src: match[1], layout: resolveImageLayout(parentClasses, '', cssRules, null) });
         }
         for (const { src, layout } of svgSrcs) {
             const token = await getImageToken(src, baseHref, layout);
@@ -506,7 +565,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             }
         }
 
-        return parts
+        const text = parts
             .join('')
             .replace(/[ \t]+\n/g, '\n')
             .replace(/\n[ \t]+/g, '\n')
@@ -514,6 +573,8 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             .replace(/\s+¶IMG:/g, ' ¶IMG:')
             .replace(/¶IMG:(\d+)¶\s+/g, '¶IMG:$1¶ ')
             .trim();
+
+        return { text, paraFormatting };
     };
 
     // Load CSS from chapter link tags
@@ -531,7 +592,9 @@ export const extractEpubContentWithImages = async (file, chapters) => {
                     if (book.archive && typeof book.archive.getText === 'function') {
                         const text = await book.archive.getText('/' + resolved);
                         if (text) {
-                            cssRules.push(...parseCssText(text));
+                            const { rules, fontFaces: ff } = parseCssText(text);
+                            cssRules.push(...rules);
+                            fontFaces.push(...ff);
                         }
                     }
                 } catch { /* CSS file not found or unparsable */ }
@@ -545,13 +608,64 @@ export const extractEpubContentWithImages = async (file, chapters) => {
         }
     }
 
+    // Extract font files and build @font-face CSS with base64 data URLs
+    let fontFaceCSS = '';
+    if (fontFaces.length > 0) {
+        const fontSrcRe = /url\(([^)]+)\)/;
+        const fontFaceBlocks = [];
+        for (const ff of fontFaces) {
+            const srcRaw = ff['src'];
+            if (!srcRaw) continue;
+            const srcMatch = srcRaw.match(fontSrcRe);
+            if (!srcMatch) continue;
+            const fontPath = srcMatch[1].trim().replace(/^['"]|['"]$/g, '');
+            // Font paths in EPUB CSS are relative to the CSS file, which is at the root
+            // Resolve from root: just normalize ../ segments
+            const parts = fontPath.split('/');
+            const resolvedParts = [];
+            for (const part of parts) {
+                if (part === '..') resolvedParts.pop();
+                else if (part !== '.' && part !== '') resolvedParts.push(part);
+            }
+            const resolved = resolvedParts.join('/');
+            try {
+                if (book.archive && typeof book.archive.getBlob === 'function') {
+                    const blob = await book.archive.getBlob('/' + resolved);
+                    if (blob) {
+                        const dataUrl = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => resolve(null);
+                            reader.readAsDataURL(blob);
+                        });
+                        if (dataUrl) {
+                            const srcUpdated = srcRaw.replace(fontPath, dataUrl);
+                            const parts = [];
+                            if (ff['font-family']) parts.push(`font-family: ${ff['font-family']}`);
+                            if (ff['font-weight']) parts.push(`font-weight: ${ff['font-weight']}`);
+                            if (ff['font-style']) parts.push(`font-style: ${ff['font-style']}`);
+                            parts.push(`src: ${srcUpdated}`);
+                            fontFaceBlocks.push(`@font-face { ${parts.join('; ')} }`);
+                        }
+                    }
+                }
+            } catch { /* font file not found */ }
+        }
+        if (fontFaceBlocks.length > 0) {
+            fontFaceCSS = fontFaceBlocks.join('\n');
+        }
+    }
+
     const texts = [];
+    const allParaFormatting = [];
     for (const chapter of chapters) {
         for (const href of chapter.hrefs) {
             try {
                 const doc = await book.load(href);
                 if (doc && doc.body) {
-                    texts.push(await extractTextAndImagesFromBody(doc.body, href));
+                    const result = await extractTextAndImagesFromBody(doc.body, href);
+                    texts.push(result.text);
+                    allParaFormatting.push(...result.paraFormatting);
                 }
             } catch (e) {
                 console.warn(`EPUB: failed to extract content from "${href}" for chapter "${chapter.label}":`, e);
@@ -560,7 +674,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
     }
 
     book.destroy();
-    return { text: texts.join('\n\n'), images };
+    return { text: texts.join('\n\n'), images, blockFormatting: allParaFormatting, fontFaceCSS };
 };
 
 /**

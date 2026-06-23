@@ -55,11 +55,11 @@ const InputArea = ({ onTextSubmit }) => {
         setIsExtracting(true);
         try {
             const selected = chaptersToUse.map(i => epubData.chapters[i]);
-            const { text, images } = await extractEpubContentWithImages(epubFile, selected);
+            const { text, images, blockFormatting, fontFaceCSS } = await extractEpubContentWithImages(epubFile, selected);
             const resumeIdx = typeof resumeWordIndex === 'number' ? resumeWordIndex : undefined;
             const selectedList = chaptersToUse.sort((a, b) => a - b);
             const selectedNames = selectedList.map(i => epubData.chapters[i]?.label || `Chapter ${i + 1}`);
-            onTextSubmit(text, resumeIdx, epubBookKey, epubData.title, selectedList, selectedNames, images);
+            onTextSubmit(text, resumeIdx, epubBookKey, epubData.title, selectedList, selectedNames, images, blockFormatting, fontFaceCSS);
         } catch (error) {
             console.error('Error extracting EPUB text:', error);
             alert('Failed to extract text from EPUB.');
