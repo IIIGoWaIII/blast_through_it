@@ -124,7 +124,9 @@ export const calculateReadingTime = (words, wpm, lineStarts, wordsPerLine) => {
     }
 
     const totalMs = words.reduce((sum, word, i) => {
+        const isImage = word.startsWith('¶IMG:');
         let wordDelay = baseDelayPerWord + getPauseForWord(word, wpm);
+        if (isImage) wordDelay += baseDelayPerWord * 9;
         if (visualLineStarts.has(i) && i !== 0) {
             wordDelay += baseDelayPerWord * lineChangeRatio;
         }

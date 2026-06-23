@@ -38,6 +38,7 @@ function App() {
   const [epubTitle, setEpubTitle] = useState(null);
   const [epubSelectedChapters, setEpubSelectedChapters] = useState(null);
   const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState(null);
+  const [epubImages, setEpubImages] = useState([]);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
@@ -64,7 +65,7 @@ function App() {
   }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
 
   // Handle text submission from InputArea
-  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames) => {
+  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images) => {
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
@@ -74,6 +75,7 @@ function App() {
       setEpubTitle(title || null);
       setEpubSelectedChapters(selectedChapters || null);
       setEpubSelectedChapterNames(selectedChapterNames || null);
+      setEpubImages(images || []);
       setMode('reader');
     }
   };
@@ -90,7 +92,9 @@ function App() {
     const hasLineChange = readingMode === 'visualPacer' && currentLineStartRef.current !== -1 && currentLineStartRef.current !== prevLineStartRef.current;
     const lineChangeDelay = hasLineChange ? baseDelay * 5 : 0;
     prevLineStartRef.current = currentLineStartRef.current;
-    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay;
+    const isImage = words[currentIndex]?.startsWith('¶IMG:');
+    const imageDelay = isImage ? baseDelay * 9 : 0;
+    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay + imageDelay;
     const start = performance.now();
 
     const tick = (now) => {
@@ -292,7 +296,7 @@ function App() {
 
             {/* Reader Stage */}
             {readingMode === 'rsvp' ? (
-              <ReaderDisplay word={words[currentIndex]} />
+              <ReaderDisplay word={words[currentIndex]} images={epubImages} />
             ) : (
               <VisualPacerDisplay
                 text={text}
@@ -302,6 +306,7 @@ function App() {
                 wordProgress={activeWordProgress}
                 wpm={wpm}
                 lineStartRef={currentLineStartRef}
+                images={epubImages}
               />
             )}
 

@@ -43,7 +43,7 @@ const WINDOW_SHIFT_WORDS = 300;
 const ESTIMATED_WORDS_PER_VISUAL_LINE = 10;
 const ESTIMATED_LINE_HEIGHT_PX = 36;
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
@@ -376,18 +376,53 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
                                     return (
                                         <React.Fragment key={word.globalIndex}>
-                                            <span
-                                                data-word-index={word.globalIndex}
-                                                className={wordClass}
-                                            >
-                                                {word.text}
-                                                {pacerStyle === 'word' && isCurrentWord && isPlaying && (
-                                                    <span
-                                                        className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
-                                                        style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
-                                                    />
-                                                )}
-                                            </span>
+                                            {word.text.startsWith('¶IMG:') ? (
+                                                <span
+                                                    data-word-index={word.globalIndex}
+                                                    className={`${wordClass} inline-block align-middle`}
+                                                >
+                                                    {(() => {
+                                                        const match = word.text.match(/¶IMG:(\d+)¶/);
+                                                        const imgIdx = match ? parseInt(match[1], 10) : -1;
+                                                        const imgData = images?.[imgIdx];
+                                                        const src = typeof imgData === 'string' ? imgData : imgData?.src;
+                                                        if (!src) return word.text;
+                                                        const layout = typeof imgData === 'object' ? imgData : {};
+                                                        const blockClass = layout.inline ? '' : 'block';
+                                                        const alignClass = layout.align === 'center' ? 'mx-auto' : layout.align === 'right' ? 'ml-auto' : '';
+                                                        const widthClass = layout.fullWidth ? 'w-full' : '';
+                                                        const imgStyle = layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
+                                                        return (
+                                                            <img
+                                                                src={src}
+                                                                alt=""
+                                                                className={`${blockClass} ${alignClass} ${widthClass} max-h-[20em] max-w-full object-contain`}
+                                                                style={imgStyle}
+                                                                draggable={false}
+                                                            />
+                                                        );
+                                                    })()}
+                                                    {pacerStyle === 'word' && isCurrentWord && isPlaying && (
+                                                        <span
+                                                            className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
+                                                            style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
+                                                        />
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    data-word-index={word.globalIndex}
+                                                    className={wordClass}
+                                                >
+                                                    {word.text}
+                                                    {pacerStyle === 'word' && isCurrentWord && isPlaying && (
+                                                        <span
+                                                            className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
+                                                            style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
+                                                        />
+                                                    )}
+                                                </span>
+                                            )}
                                             {' '}
                                         </React.Fragment>
                                     );
