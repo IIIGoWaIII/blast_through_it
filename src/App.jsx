@@ -93,7 +93,16 @@ function App() {
     const lineChangeDelay = hasLineChange ? baseDelay * 5 : 0;
     prevLineStartRef.current = currentLineStartRef.current;
     const isImage = words[currentIndex]?.startsWith('¶IMG:');
-    const imageDelay = isImage ? baseDelay * 9 : 0;
+    let imageDelay = 0;
+    if (isImage) {
+        const match = words[currentIndex].match(/¶IMG:(\d+)¶/);
+        const imgIdx = match ? parseInt(match[1], 10) : -1;
+        const imgData = epubImages[imgIdx];
+        const layout = typeof imgData === 'object' ? imgData : {};
+        // Centered block images are decorative separators — no extra pause
+        // Content images get full 10x pause
+        imageDelay = (layout.align === 'center' && !layout.inline) ? 0 : baseDelay * 9;
+    }
     const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay + imageDelay;
     const start = performance.now();
 
@@ -117,7 +126,7 @@ function App() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isPlaying, currentIndex, words, wpm, paragraphStarts, readingMode]);
+  }, [isPlaying, currentIndex, words, wpm, paragraphStarts, readingMode, epubImages]);
 
   // Keyboard Shortcuts
   useEffect(() => {

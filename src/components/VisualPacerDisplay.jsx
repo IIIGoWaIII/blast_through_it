@@ -377,38 +377,44 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                     return (
                                         <React.Fragment key={word.globalIndex}>
                                             {word.text.startsWith('¶IMG:') ? (
-                                                <span
-                                                    data-word-index={word.globalIndex}
-                                                    className={`${wordClass} inline-block align-middle`}
-                                                >
-                                                    {(() => {
-                                                        const match = word.text.match(/¶IMG:(\d+)¶/);
-                                                        const imgIdx = match ? parseInt(match[1], 10) : -1;
-                                                        const imgData = images?.[imgIdx];
-                                                        const src = typeof imgData === 'string' ? imgData : imgData?.src;
-                                                        if (!src) return word.text;
-                                                        const layout = typeof imgData === 'object' ? imgData : {};
-                                                        const blockClass = layout.inline ? '' : 'block';
-                                                        const alignClass = layout.align === 'center' ? 'mx-auto' : layout.align === 'right' ? 'ml-auto' : '';
-                                                        const widthClass = layout.fullWidth ? 'w-full' : '';
-                                                        const imgStyle = layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
-                                                        return (
+                                                (() => {
+                                                    const match = word.text.match(/¶IMG:(\d+)¶/);
+                                                    const imgIdx = match ? parseInt(match[1], 10) : -1;
+                                                    const imgData = images?.[imgIdx];
+                                                    const src = typeof imgData === 'string' ? imgData : imgData?.src;
+                                                    const layout = typeof imgData === 'object' ? imgData : {};
+
+                                                    if (!src) {
+                                                        return <span data-word-index={word.globalIndex} className={wordClass}>{word.text}</span>;
+                                                    }
+
+                                                    const wrapperClass = layout.inline
+                                                        ? `${wordClass} inline-block align-middle`
+                                                        : `${wordClass} block w-full text-center my-1`;
+                                                    const widthClass = layout.fullWidth ? 'w-full' : '';
+                                                    const imgStyle = layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
+
+                                                    return (
+                                                        <span
+                                                            data-word-index={word.globalIndex}
+                                                            className={wrapperClass}
+                                                        >
                                                             <img
                                                                 src={src}
                                                                 alt=""
-                                                                className={`${blockClass} ${alignClass} ${widthClass} max-h-[20em] max-w-full object-contain`}
+                                                                className={`${widthClass} max-h-[20em] max-w-full object-contain`}
                                                                 style={imgStyle}
                                                                 draggable={false}
                                                             />
-                                                        );
-                                                    })()}
-                                                    {pacerStyle === 'word' && isCurrentWord && isPlaying && (
-                                                        <span
-                                                            className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
-                                                            style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
-                                                        />
-                                                    )}
-                                                </span>
+                                                            {pacerStyle === 'word' && isCurrentWord && isPlaying && (
+                                                                <span
+                                                                    className="absolute bottom-[-2px] left-0 h-[2px] bg-red-500 rounded-full"
+                                                                    style={{ width: `${Math.min(wordProgress * 100, 100)}%` }}
+                                                                />
+                                                            )}
+                                                        </span>
+                                                    );
+                                                })()
                                             ) : (
                                                 <span
                                                     data-word-index={word.globalIndex}
