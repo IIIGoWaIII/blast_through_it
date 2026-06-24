@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
 import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
@@ -7,10 +7,13 @@ import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIn
 import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
 import { shouldSimplify, isMobile } from './utils/device';
 import { saveProgress } from './utils/epubProgress';
+import type { CSSProperties } from 'react';
+import type { EpubImage, VisualBlock, BlockStyleRange, SavedSettings } from './types';
 
-function loadSettings() {
+function loadSettings(): SavedSettings {
   try {
-    const saved = JSON.parse(localStorage.getItem('blast-settings'));
+    const raw = localStorage.getItem('blast-settings');
+    const saved = raw ? JSON.parse(raw) : null;
     if (!saved) return {};
     return {
       wpm: typeof saved.wpm === 'number' && saved.wpm >= 50 && saved.wpm <= 1200 ? saved.wpm : undefined,
@@ -24,33 +27,33 @@ function App() {
   const simplified = shouldSimplify();
   const settings = loadSettings();
 
-  const [mode, setMode] = useState('input'); // 'input' or 'reader'
+  const [mode, setMode] = useState<'input' | 'reader'>('input');
   const [text, setText] = useState('');
-  const [words, setWords] = useState([]);
+  const [words, setWords] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [wpm, setWpm] = useState(settings.wpm ?? 300);
   const [nightMode, setNightMode] = useState(false);
-  const [readingMode, setReadingMode] = useState(settings.readingMode ?? 'rsvp'); // 'rsvp' or 'visualPacer'
-  const [pacerStyle, setPacerStyle] = useState(settings.pacerStyle ?? 'line'); // 'line' or 'word'
-  const [wordProgress, setWordProgress] = useState({ index: 0, value: 0 });
-  const [epubBookKey, setEpubBookKey] = useState(null);
-  const [epubTitle, setEpubTitle] = useState(null);
-  const [epubSelectedChapters, setEpubSelectedChapters] = useState(null);
-  const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState(null);
-  const [epubImages, setEpubImages] = useState([]);
-  const [epubBlockFormatting, setEpubBlockFormatting] = useState(null);
-  const [epubVisualBlocks, setEpubVisualBlocks] = useState(null);
-  const [epubBlockStyleRanges, setEpubBlockStyleRanges] = useState(null);
-  const [epubWordStyles, setEpubWordStyles] = useState(null);
-  const [epubFontFaceCSS, setEpubFontFaceCSS] = useState(null);
+  const [readingMode, setReadingMode] = useState<'rsvp' | 'visualPacer'>(settings.readingMode ?? 'rsvp');
+  const [pacerStyle, setPacerStyle] = useState<'line' | 'word'>(settings.pacerStyle ?? 'line');
+  const [wordProgress, setWordProgress] = useState<{ index: number; value: number }>({ index: 0, value: 0 });
+  const [epubBookKey, setEpubBookKey] = useState<string | null>(null);
+  const [epubTitle, setEpubTitle] = useState<string | null>(null);
+  const [epubSelectedChapters, setEpubSelectedChapters] = useState<number[] | null>(null);
+  const [epubSelectedChapterNames, setEpubSelectedChapterNames] = useState<string[] | null>(null);
+  const [epubImages, setEpubImages] = useState<EpubImage[]>([]);
+  const [epubBlockFormatting, setEpubBlockFormatting] = useState<CSSProperties[] | null>(null);
+  const [epubVisualBlocks, setEpubVisualBlocks] = useState<VisualBlock[] | null>(null);
+  const [epubBlockStyleRanges, setEpubBlockStyleRanges] = useState<BlockStyleRange[] | null>(null);
+  const [epubWordStyles, setEpubWordStyles] = useState<CSSProperties[] | null>(null);
+  const [epubFontFaceCSS, setEpubFontFaceCSS] = useState<string | null>(null);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
 
-  const animationRef = useRef(null);
-  const currentLineStartRef = useRef(-1);
-  const prevLineStartRef = useRef(-1);
+  const animationRef = useRef<number | null>(null);
+  const currentLineStartRef = useRef<number>(-1);
+  const prevLineStartRef = useRef<number>(-1);
 
   // Persist reading settings
   useEffect(() => {
@@ -69,7 +72,7 @@ function App() {
 
   // Save EPUB reading progress whenever index changes in reader mode
   useEffect(() => {
-    if (!epubBookKey || words.length === 0 || mode !== 'reader') return;
+    if (!epubBookKey || !epubTitle || !epubSelectedChapters || !epubSelectedChapterNames || words.length === 0 || mode !== 'reader') return;
     saveProgress(epubBookKey, {
       wordIndex: currentIndex,
       totalWords: words.length,
@@ -80,7 +83,20 @@ function App() {
   }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
 
   // Handle text submission from InputArea
-  const handleTextSubmit = (submittedText, savedIndex, bookKey, title, selectedChapters, selectedChapterNames, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS) => {
+  const handleTextSubmit = (
+    submittedText: string,
+    savedIndex: number | undefined,
+    bookKey: string | null,
+    title: string | null,
+    selectedChapters: number[] | null,
+    selectedChapterNames: string[] | null,
+    images: EpubImage[],
+    blockFormatting: CSSProperties[] | null,
+    visualBlocks: VisualBlock[] | null,
+    blockStyleRanges: BlockStyleRange[] | null,
+    wordStyles: CSSProperties[] | null,
+    fontFaceCSS: string | null
+  ) => {
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
@@ -118,7 +134,7 @@ function App() {
         const match = words[currentIndex].match(/¶IMG:(\d+)¶/);
         const imgIdx = match ? parseInt(match[1], 10) : -1;
         const imgData = epubImages[imgIdx];
-        const layout = typeof imgData === 'object' ? imgData : {};
+        const layout: EpubImage = typeof imgData === 'object' ? imgData : { src: '', align: '', maxWidth: null, fullWidth: false };
         // Centered block images are decorative separators — no extra pause
         // Content images get full 10x pause
         imageDelay = (layout.align === 'center' && !layout.inline) ? 0 : baseDelay * 9;
@@ -126,7 +142,7 @@ function App() {
     const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay + imageDelay;
     const start = performance.now();
 
-    const tick = (now) => {
+    const tick = (now: number) => {
       const progress = (now - start) / delay;
 
       if (progress >= 1) {
@@ -150,9 +166,9 @@ function App() {
 
   // Keyboard Shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts if user is typing in an input field
-      const tag = document.activeElement.tagName;
+      const tag = document.activeElement?.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT') return;
 
       switch (e.key.toLowerCase()) {
@@ -202,12 +218,12 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mode, words.length]);
 
-  const handleProgressChange = (val) => {
+  const handleProgressChange = (val: number) => {
     const newIndex = Math.floor((val / 100) * (words.length - 1));
     setCurrentIndex(newIndex);
   };
 
-  const handleJumpToWord = (wordNumber) => {
+  const handleJumpToWord = (wordNumber: number) => {
     const idx = Math.max(0, Math.min(words.length - 1, wordNumber - 1));
     setCurrentIndex(idx);
     setIsPlaying(false);
@@ -216,13 +232,13 @@ function App() {
   const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
   const activeWordProgress = wordProgress.index === currentIndex ? wordProgress.value : 0;
 
-  const [wordsPerLine, setWordsPerLine] = useState(() => isMobile() ? 4 : 10);
+  const [wordsPerLine, setWordsPerLine] = useState<number>(() => isMobile() ? 4 : 10);
 
   const totalReadingSeconds = calculateReadingTime(words, wpm, lineStarts, wordsPerLine);
   const totalTime = formatTime(totalReadingSeconds);
   const effectiveWpm = totalReadingSeconds > 0 ? Math.round(words.length / (totalReadingSeconds / 60)) : wpm;
   const remainingLineStarts = useMemo(() => {
-    const adjusted = new Set();
+    const adjusted = new Set<number>();
     for (const idx of lineStarts) {
       if (idx >= currentIndex) {
         adjusted.add(idx - currentIndex);

@@ -1,7 +1,25 @@
 import React from 'react';
 import { Play, Pause, RotateCcw, FastForward, Rewind, Plus, Minus } from 'lucide-react';
 
-const ControlBar = ({
+interface ControlBarProps {
+    isPlaying: boolean;
+    onTogglePlay: () => void;
+    wpm: number;
+    onWpmChange: (wpm: number) => void;
+    progress: number;
+    onProgressChange: (val: number) => void;
+    remainingTime: string;
+    onReset: () => void;
+    onPrev: () => void;
+    onNext: () => void;
+    nightMode: boolean;
+    totalWords: number;
+    currentIndex: number;
+    onJumpToWord: (wordNumber: number) => void;
+    effectiveWpm: number;
+}
+
+const ControlBar: React.FC<ControlBarProps> = ({
     isPlaying,
     onTogglePlay,
     wpm,
@@ -20,13 +38,13 @@ const ControlBar = ({
 }) => {
     const [jumpValue, setJumpValue] = React.useState('');
 
-    const handleJumpSubmit = (e) => {
+    const handleJumpSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             const num = parseInt(jumpValue, 10);
             if (!isNaN(num) && num >= 1 && num <= totalWords) {
                 onJumpToWord(num);
                 setJumpValue('');
-                e.target.blur();
+                (e.target as HTMLInputElement).blur();
             }
         }
     };

@@ -1,70 +1,44 @@
-/**
- * Splits text into an array of words, filtering out empty strings.
- * @param {string} text 
- * @returns {string[]}
- */
-export const parseTextToWords = (text) => {
+import type { WordSplit } from '../types';
+
+export const parseTextToWords = (text: string): string[] => {
     if (!text) return [];
 
-    // Replace m-dashes with spaces (ignore them)
-    // Replace hyphens with hyphen + space (split after hyphen)
     const processedText = text
         .replace(/—/g, ' ')
         .replace(/-/g, '- ');
 
-    // Split by whitespace and filter out empty strings
     return processedText.trim().split(/\s+/).filter(word => word.length > 0);
 };
 
-/**
- * Calculates the index of the "Optimal Recognition Point" (ORP) or "Pivot" letter.
- * Standard RSVP algorithm for focus point.
- * @param {string} word 
- * @returns {number}
- */
-export const getOrpIndex = (word) => {
+export const getOrpIndex = (word: string): number => {
     const length = word.length;
     if (length === 0) return 0;
     return Math.floor((length - 1) / 2);
 };
 
-// Pause ratios relative to base delay per word
-const SENTENCE_END_RATIO = 2.5; // . ! ? ;
-const COMMA_RATIO = 1.25;       // , : ( ) " "
-const MID_SENTENCE_RATIO = 5;   // mid-word punctuation (e.g. "said.She")
-const SPECIAL_CHAR_RATIO = 2;   // * % $ # @ /
-const ELLIPSIS_RATIO = 4;       // ...
-const PARAGRAPH_RATIO = 3;      // new paragraph start
+const SENTENCE_END_RATIO = 2.5;
+const COMMA_RATIO = 1.25;
+const MID_SENTENCE_RATIO = 5;
+const SPECIAL_CHAR_RATIO = 2;
+const ELLIPSIS_RATIO = 4;
 
-/**
- * Returns extra pause in ms, scaled by WPM.
- * Mid-word punctuation (e.g. "said.She") gets a larger pause.
- * Special characters (? * % $ # @ ! /) trigger a pause.
- * @param {string} word
- * @param {number} wpm
- * @returns {number}
- */
-export const getPauseForWord = (word, wpm) => {
+export const getPauseForWord = (word: string, wpm: number): number => {
     const baseDelay = (60 / wpm) * 1000;
     let ratio = 0;
 
-    // Mid-word sentence-ending punctuation (period/excl/question followed by a letter)
     if (/[.;:!?][a-zA-Z]/.test(word)) {
         ratio += MID_SENTENCE_RATIO;
     }
 
-    // Leading open-paren or open-quote
     if (word.startsWith('(') || word.startsWith('"')) {
         ratio += COMMA_RATIO;
     }
 
-    // Ellipsis (...)
     const hasEllipsis = /\.\.\./.test(word);
     if (hasEllipsis) {
         ratio += ELLIPSIS_RATIO;
     }
 
-    // Trailing punctuation (skip dots if ellipsis already handled)
     const trailingMatch = word.match(/[.;:!?!,)""']+$/);
     if (trailingMatch) {
         for (const char of trailingMatch[0]) {
@@ -78,7 +52,6 @@ export const getPauseForWord = (word, wpm) => {
         }
     }
 
-    // Special characters: * % $ # @ /
     const specialChars = word.match(/[*%$#@!/]/g);
     if (specialChars) {
         ratio += SPECIAL_CHAR_RATIO;
@@ -87,26 +60,20 @@ export const getPauseForWord = (word, wpm) => {
     return ratio * baseDelay;
 };
 
-/**
- * Calculates total reading time in seconds for a list of words at a given WPM.
- * Accounts for punctuation pauses and line change delays.
- * @param {string[]} words
- * @param {number} wpm
- * @param {Set<number>} [lineStarts] - word indices that start a new source line
- * @param {number} [wordsPerLine] - estimated words per visual line (for wrap estimation)
- * @returns {number} seconds
- */
-export const calculateReadingTime = (words, wpm, lineStarts, wordsPerLine) => {
+export const calculateReadingTime = (
+    words: string[],
+    wpm: number,
+    lineStarts?: Set<number>,
+    wordsPerLine?: number
+): number => {
     if (!words.length || wpm <= 0) return 0;
     const baseDelayPerWord = (60 / wpm) * 1000;
     const lineChangeRatio = 5;
 
-    // Build set of visual line starts by estimating wraps within each source line
-    const visualLineStarts = new Set();
+    const visualLineStarts = new Set<number>();
     if (lineStarts && wordsPerLine && wordsPerLine > 0) {
         const sortedStarts = [...lineStarts].sort((a, b) => a - b);
         for (const start of sortedStarts) {
-            // Find next source line start (or end of words)
             const nextStart = sortedStarts.find(s => s > start) ?? words.length;
             const sourceLineWordCount = nextStart - start;
             const wraps = Math.ceil(sourceLineWordCount / wordsPerLine);
@@ -123,11 +90,9 @@ export const calculateReadingTime = (words, wpm, lineStarts, wordsPerLine) => {
         }
     }
 
-    const totalMs = words.reduce((sum, word, i) => {
+    const totalMs = words.reduce((sum: number, word: string, i: number) => {
         const isImage = word.startsWith('¶IMG:');
         let wordDelay = baseDelayPerWord + getPauseForWord(word, wpm);
-        // Images: decorative (centered+block) get no extra pause, content gets 10x
-        // Cannot resolve layout here, so conservatively add pause for all images
         if (isImage) wordDelay += baseDelayPerWord * 9;
         if (visualLineStarts.has(i) && i !== 0) {
             wordDelay += baseDelayPerWord * lineChangeRatio;
@@ -137,13 +102,7 @@ export const calculateReadingTime = (words, wpm, lineStarts, wordsPerLine) => {
     return totalMs / 1000;
 };
 
-/**
- * Formats seconds into human-readable reading time.
- * <60s: "XXmin", <3600s: "M:SSmin", >=3600s: "H:MM:SSh"
- * @param {number} seconds
- * @returns {string}
- */
-export const formatTime = (seconds) => {
+export const formatTime = (seconds: number): string => {
     const s = Math.max(0, Math.round(seconds));
     if (s < 60) return `${String(s).padStart(2, '0')}sec`;
     if (s < 3600) {
@@ -157,16 +116,8 @@ export const formatTime = (seconds) => {
     return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}h`;
 };
 
-/**
- * Returns a Set of word indices that start a new paragraph.
- * Paragraphs are split by double newlines, matching VisualPacerDisplay layout.
- * Uses same hyphen handling as parseTextToWords to keep indices aligned.
- * @param {string} text
- * @param {string[]} words
- * @returns {Set<number>}
- */
-export const getNewParagraphIndices = (text, words) => {
-    const indices = new Set();
+export const getNewParagraphIndices = (text: string, words: string[]): Set<number> => {
+    const indices = new Set<number>();
     if (!text || !words.length) return indices;
 
     const paragraphs = text.split(/\n\n+/);
@@ -184,14 +135,8 @@ export const getNewParagraphIndices = (text, words) => {
     return indices;
 };
 
-/**
- * Returns a Set of word indices that start a new line (single newline).
- * @param {string} text
- * @param {string[]} words
- * @returns {Set<number>}
- */
-export const getNewLineIndices = (text, words) => {
-    const indices = new Set();
+export const getNewLineIndices = (text: string, words: string[]): Set<number> => {
+    const indices = new Set<number>();
     if (!text || !words.length) return indices;
 
     const lines = text.split(/\n/);
@@ -209,12 +154,7 @@ export const getNewLineIndices = (text, words) => {
     return indices;
 };
 
-/**
- * Splits a word into three parts: pre-ORP, ORP, and post-ORP.
- * @param {string} word 
- * @returns {{pre: string, orp: string, post: string}}
- */
-export const splitWordAtOrp = (word) => {
+export const splitWordAtOrp = (word: string): WordSplit => {
     const orpIndex = getOrpIndex(word);
     return {
         pre: word.substring(0, orpIndex),

@@ -1,7 +1,13 @@
 import React from 'react';
 import { splitWordAtOrp } from '../utils/textParser';
+import { EpubImage } from '../types';
 
-const ReaderDisplay = ({ word, images }) => {
+interface ReaderDisplayProps {
+    word: string | undefined;
+    images?: EpubImage[];
+}
+
+const ReaderDisplay: React.FC<ReaderDisplayProps> = ({ word, images }) => {
     if (!word) return (
         <div className="h-64 flex items-center justify-center text-zinc-500 italic">
             Paste text or import a file to begin
@@ -11,13 +17,13 @@ const ReaderDisplay = ({ word, images }) => {
     const isImage = word.startsWith('¶IMG:');
     if (isImage) {
         const match = word.match(/¶IMG:(\d+)¶/);
-        const imgIdx = match ? parseInt(match[1], 10) : -1;
-        const imgData = images?.[imgIdx];
-        const src = typeof imgData === 'string' ? imgData : imgData?.src;
-        const layout = typeof imgData === 'object' ? imgData : {};
-        const fontSize = "clamp(1.125rem, 6vw, 3.5rem)";
-        const alignClass = layout.align === 'center' ? 'justify-center' : layout.align === 'right' ? 'justify-end' : 'justify-start';
-        const widthStyle = layout.fullWidth ? { width: '100%' } : layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
+        const imgIdx: number = match ? parseInt(match[1], 10) : -1;
+        const imgData: EpubImage | undefined = images?.[imgIdx];
+        const src: string | undefined = typeof imgData === 'string' ? imgData : imgData?.src;
+        const layout: Partial<EpubImage> = typeof imgData === 'object' ? imgData : {};
+        const fontSize: string = "clamp(1.125rem, 6vw, 3.5rem)";
+        const alignClass: string = layout.align === 'center' ? 'justify-center' : layout.align === 'right' ? 'justify-end' : 'justify-start';
+        const widthStyle: React.CSSProperties = layout.fullWidth ? { width: '100%' } : layout.maxWidth ? { maxWidth: layout.maxWidth } : {};
         return (
             <div className="relative w-full max-w-[95vw] md:max-w-[75vw] mx-auto h-64 md:h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">
                 <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[2px] h-8 md:h-12 bg-zinc-700 z-20" />
@@ -43,7 +49,7 @@ const ReaderDisplay = ({ word, images }) => {
 
     // Reduced font size by 50% per user request
     // Responsive font size using clamp, reduced by 25% for mobile per user request
-    const fontSize = "clamp(1.125rem, 6vw, 3.5rem)";
+    const fontSize: string = "clamp(1.125rem, 6vw, 3.5rem)";
 
     return (
         <div className="relative w-full max-w-[95vw] md:max-w-[75vw] mx-auto h-64 md:h-80 flex flex-col items-center justify-center select-none overflow-hidden px-4">

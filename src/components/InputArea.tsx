@@ -1,28 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, type ChangeEvent, type CSSProperties } from 'react';
 import { Upload, X, BookOpen, CheckSquare, Square, RotateCcw } from 'lucide-react';
 import { loadFileContent, parseEpubChapters, extractEpubContentWithImages } from '../utils/fileLoaders';
 import { shouldSimplify } from '../utils/device';
 import { getBookKey, getProgress } from '../utils/epubProgress';
+import type { EpubData, EpubImage, BlockStyleRange, VisualBlock, EpubProgressData } from '../types';
 
-const InputArea = ({ onTextSubmit }) => {
-    const [text, setText] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+interface InputAreaProps {
+  onTextSubmit: (
+    text: string,
+    savedIndex: number | undefined,
+    bookKey: string | null,
+    title: string | null,
+    selectedChapters: number[] | null,
+    selectedChapterNames: string[] | null,
+    images: EpubImage[],
+    blockFormatting: CSSProperties[] | null,
+    visualBlocks: VisualBlock[] | null,
+    blockStyleRanges: BlockStyleRange[] | null,
+    wordStyles: CSSProperties[] | null,
+    fontFaceCSS: string | null,
+  ) => void;
+}
+
+const InputArea: React.FC<InputAreaProps> = ({ onTextSubmit }) => {
+    const [text, setText] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const simplified = shouldSimplify();
 
-    const [epubData, setEpubData] = useState(null);
-    const [epubFile, setEpubFile] = useState(null);
-    const [selectedChapters, setSelectedChapters] = useState(new Set());
-    const [isExtracting, setIsExtracting] = useState(false);
-    const [resumeInfo, setResumeInfo] = useState(null);
-    const [epubBookKey, setEpubBookKey] = useState(null);
+    const [epubData, setEpubData] = useState<EpubData | null>(null);
+    const [epubFile, setEpubFile] = useState<File | null>(null);
+    const [selectedChapters, setSelectedChapters] = useState<Set<number>>(new Set());
+    const [isExtracting, setIsExtracting] = useState<boolean>(false);
+    const [resumeInfo, setResumeInfo] = useState<EpubProgressData | null>(null);
+    const [epubBookKey, setEpubBookKey] = useState<string | null>(null);
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
+    const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         setIsLoading(true);
         try {
-            const extension = file.name.split('.').pop().toLowerCase();
+            const extension = file.name.split('.').pop()?.toLowerCase();
             if (extension === 'epub') {
                 const data = await parseEpubChapters(file);
                 setEpubData(data);
@@ -48,18 +66,18 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
-    const handleEpubSubmit = async (resumeWordIndex, resumeChapterIndices) => {
+    const handleEpubSubmit = async (resumeWordIndex?: number, resumeChapterIndices?: number[]): Promise<void> => {
         if (!epubFile) return;
         const chaptersToUse = resumeChapterIndices || Array.from(selectedChapters);
         if (chaptersToUse.length === 0) return;
         setIsExtracting(true);
         try {
-            const selected = chaptersToUse.map(i => epubData.chapters[i]);
+            const selected = chaptersToUse.map(i => epubData!.chapters[i]);
             const { text, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS } = await extractEpubContentWithImages(epubFile, selected);
             const resumeIdx = typeof resumeWordIndex === 'number' ? resumeWordIndex : undefined;
             const selectedList = chaptersToUse.sort((a, b) => a - b);
-            const selectedNames = selectedList.map(i => epubData.chapters[i]?.label || `Chapter ${i + 1}`);
-            onTextSubmit(text, resumeIdx, epubBookKey, epubData.title, selectedList, selectedNames, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS);
+            const selectedNames = selectedList.map(i => epubData!.chapters[i]?.label || `Chapter ${i + 1}`);
+            onTextSubmit(text, resumeIdx, epubBookKey, epubData!.title, selectedList, selectedNames, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS);
         } catch (error) {
             console.error('Error extracting EPUB text:', error);
             alert('Failed to extract text from EPUB.');
@@ -68,7 +86,7 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
-    const toggleChapter = (index) => {
+    const toggleChapter = (index: number): void => {
         setSelectedChapters(prev => {
             const next = new Set(prev);
             if (next.has(index)) next.delete(index);
@@ -77,7 +95,7 @@ const InputArea = ({ onTextSubmit }) => {
         });
     };
 
-    const toggleAll = () => {
+    const toggleAll = (): void => {
         if (!epubData) return;
         if (selectedChapters.size === epubData.chapters.length) {
             setSelectedChapters(new Set());
@@ -86,7 +104,7 @@ const InputArea = ({ onTextSubmit }) => {
         }
     };
 
-    const clearEpub = () => {
+    const clearEpub = (): void => {
         setEpubData(null);
         setEpubFile(null);
         setSelectedChapters(new Set());
@@ -224,7 +242,7 @@ const InputArea = ({ onTextSubmit }) => {
                         </div>
 
                         <button
-                            onClick={handleEpubSubmit}
+                            onClick={() => handleEpubSubmit()}
                             disabled={selectedChapters.size === 0 || isExtracting}
                             className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
                         >
@@ -241,7 +259,7 @@ const InputArea = ({ onTextSubmit }) => {
                         />
 
                         <button
-                            onClick={() => onTextSubmit(text)}
+                            onClick={() => onTextSubmit(text, undefined, null, null, null, null, [], null, null, null, null, null)}
                             disabled={!text.trim()}
                             className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
                         >

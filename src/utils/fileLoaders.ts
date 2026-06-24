@@ -1,20 +1,45 @@
+import type { CSSProperties } from 'react';
+import type {
+    EpubChapter,
+    EpubImage,
+    EpubContentResult,
+    CssRule,
+    SelectorPart,
+    ElementContext,
+    ImageLayout,
+    ParsedCss,
+    VisualBlock,
+    BlockStyleRange,
+} from '../types';
+
+interface EpubBook {
+    ready: Promise<void>;
+    packaging: { metadata: { title?: string; creator?: string } };
+    navigation: { toc: { label: string; href?: string; subitems?: unknown[] }[] };
+    archive: { getBlob(path: string): Promise<Blob | null>; getText(path: string): Promise<string | null> };
+    spine: { each(callback: (section: { href: string }) => void): void };
+    load(href: string): Promise<{ body: HTMLElement; querySelectorAll(selector: string): NodeListOf<HTMLElement> }>;
+    destroy(): void;
+}
+
 /**
  * Extracts text from a PDF file.
- * @param {File} file 
- * @returns {Promise<string>}
  */
-export const extractTextFromPDF = async (file) => {
+export const extractTextFromPDF = async (file: File): Promise<string> => {
     const pdfjs = await import('pdfjs-dist');
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdf = await (pdfjs as any).getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
 
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const strings = content.items.map(item => item.str);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const strings: string[] = content.items.map((item: any) => item.str);
         fullText += strings.join(' ') + '\n';
     }
 
@@ -23,25 +48,22 @@ export const extractTextFromPDF = async (file) => {
 
 /**
  * Extracts text from a DOCX file.
- * @param {File} file 
- * @returns {Promise<string>}
  */
-export const extractTextFromDOCX = async (file) => {
+export const extractTextFromDOCX = async (file: File): Promise<string> => {
     const mammoth = await import('mammoth');
     const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (mammoth as any).extractRawText({ arrayBuffer });
+    return result.value as string;
 };
 
 /**
  * Reads a TXT file as a string.
- * @param {File} file 
- * @returns {Promise<string>}
  */
-export const extractTextFromTXT = async (file) => {
+export const extractTextFromTXT = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
+        reader.onload = (e) => resolve(e.target!.result as string);
         reader.onerror = (e) => reject(e);
         reader.readAsText(file);
     });
@@ -58,35 +80,32 @@ const EPUB_BLOCK_TAGS = new Set([
     'td', 'th', 'tr', 'ul',
 ]);
 
-const loadEpubFactory = async () => {
-    const module = await import('epubjs');
-    return module.default?.default || module.default;
+const loadEpubFactory = async (): Promise<(data: ArrayBuffer) => EpubBook> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const module: any = await import('epubjs');
+    return (module.default?.default || module.default) as (data: ArrayBuffer) => EpubBook;
 };
 
-const appendBreak = (parts) => {
+const appendBreak = (parts: string[]): void => {
     if (parts.length > 0 && parts[parts.length - 1] !== '\n') {
         parts.push('\n');
     }
 };
 
-/**
- * Parses CSS text into an array of rules, each mapping class names to properties.
- * Handles @media blocks by extracting their inner rules.
- */
-const parseInlineStyle = (inlineStyle) => {
-    const props = {};
+const parseInlineStyle = (inlineStyle: string): Record<string, string> => {
+    const props: Record<string, string> = {};
     if (!inlineStyle) return props;
     const inlineRe = /([\w-]+)\s*:\s*([^;]+)/g;
-    let m;
+    let m: RegExpExecArray | null;
     while ((m = inlineRe.exec(inlineStyle)) !== null) {
         props[m[1].trim().toLowerCase()] = m[2].trim();
     }
     return props;
 };
 
-const parseSelectorPart = (part) => {
+const parseSelectorPart = (part: string): SelectorPart => {
     const idMatch = part.match(/#([\w-]+)/);
-    const classMatches = [...part.matchAll(/\.([\w-]+)/g)].map(m => m[1]);
+    const classMatches: string[] = [...part.matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
     const tagMatch = part.match(/^([a-zA-Z][a-zA-Z0-9-]*)/);
     return {
         tag: tagMatch ? tagMatch[1].toLowerCase() : null,
@@ -95,7 +114,7 @@ const parseSelectorPart = (part) => {
     };
 };
 
-const selectorSpecificity = (parts) => {
+const selectorSpecificity = (parts: SelectorPart[]): number => {
     let ids = 0;
     let classes = 0;
     let tags = 0;
@@ -107,25 +126,25 @@ const selectorSpecificity = (parts) => {
     return ids * 100 + classes * 10 + tags;
 };
 
-const parseCssText = (cssText, baseHref = '') => {
+const parseCssText = (cssText: string, baseHref: string = ''): ParsedCss => {
     const cleaned = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
     let expanded = cleaned;
     const mediaRe = /@media[^{]*\{([\s\S]*?)\}/g;
-    let m;
+    let m: RegExpExecArray | null;
     while ((m = mediaRe.exec(cleaned)) !== null) {
         expanded += ' ' + m[1];
     }
-    const rules = [];
-    const fontFaces = [];
+    const rules: CssRule[] = [];
+    const fontFaces: Record<string, string>[] = [];
     const ruleRe = /([^{}]+)\{([^{}]+)\}/g;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = ruleRe.exec(expanded)) !== null) {
         const selector = match[1].trim();
         const body = match[2].trim();
         if (selector.startsWith('@font-face')) {
-            const props = {};
+            const props: Record<string, string> = {};
             const propRe = /([\w-]+)\s*:\s*([^;]+)/g;
-            let pm;
+            let pm: RegExpExecArray | null;
             while ((pm = propRe.exec(body)) !== null) {
                 props[pm[1].trim().toLowerCase()] = pm[2].trim();
             }
@@ -133,9 +152,9 @@ const parseCssText = (cssText, baseHref = '') => {
             continue;
         }
         if (selector.startsWith('@')) continue;
-        const props = {};
+        const props: Record<string, string> = {};
         const propRe = /([\w-]+)\s*:\s*([^;]+)/g;
-        let pm;
+        let pm: RegExpExecArray | null;
         while ((pm = propRe.exec(body)) !== null) {
             props[pm[1].trim().toLowerCase()] = pm[2].trim();
         }
@@ -145,15 +164,16 @@ const parseCssText = (cssText, baseHref = '') => {
                 .replace(/::?[\w-]+(?:\([^)]*\))?/g, '')
                 .replace(/\s*[>+~]\s*/g, ' ');
             if (!cleanSelector || /[[\]]/.test(cleanSelector)) continue;
-            const parts = cleanSelector.split(/\s+/).map(parseSelectorPart).filter(part => (
-                part.tag || part.id || part.classes.length > 0
-            ));
+            const parts: SelectorPart[] = cleanSelector
+                .split(/\s+/)
+                .map(parseSelectorPart)
+                .filter((part) => part.tag || part.id || part.classes.length > 0);
             if (parts.length > 0) {
                 rules.push({
                     selector: cleanSelector,
                     parts,
-                    classes: parts.flatMap(part => part.classes),
-                    tagNames: parts.map(part => part.tag).filter(Boolean),
+                    classes: parts.flatMap((part) => part.classes),
+                    tagNames: parts.map((part) => part.tag).filter(Boolean) as (string | null)[],
                     specificity: selectorSpecificity(parts),
                     order: rules.length,
                     props,
@@ -164,17 +184,17 @@ const parseCssText = (cssText, baseHref = '') => {
     return { rules, fontFaces };
 };
 
-const matchesSelectorPart = (elementCtx, part) => {
+const matchesSelectorPart = (elementCtx: ElementContext | null, part: SelectorPart): boolean => {
     if (!elementCtx) return false;
     if (part.tag && part.tag !== elementCtx.tagName?.toLowerCase()) return false;
     if (part.id && part.id !== elementCtx.id) return false;
-    return part.classes.every(c => elementCtx.classes.includes(c));
+    return part.classes.every((c) => elementCtx.classes.includes(c));
 };
 
-const matchesCssRule = (elementCtx, ancestors, rule) => {
+const matchesCssRule = (elementCtx: ElementContext, ancestors: ElementContext[], rule: CssRule): boolean => {
     if (!rule.parts?.length) {
-        const classMatch = rule.classes.some(c => elementCtx.classes.includes(c));
-        const tagMatch = rule.tagNames?.some(t => t === elementCtx.tagName?.toLowerCase());
+        const classMatch = rule.classes.some((c) => elementCtx.classes.includes(c));
+        const tagMatch = rule.tagNames?.some((t) => t === elementCtx.tagName?.toLowerCase());
         return classMatch || tagMatch;
     }
 
@@ -191,19 +211,26 @@ const matchesCssRule = (elementCtx, ancestors, rule) => {
     return partIdx < 0;
 };
 
-const resolveCssProps = (elementCtx, ancestors, cssRules) => {
+const resolveCssProps = (
+    elementCtx: ElementContext,
+    ancestors: ElementContext[],
+    cssRules: CssRule[],
+): Record<string, string> => {
     const matched = cssRules
-        .filter(rule => matchesCssRule(elementCtx, ancestors, rule))
-        .sort((a, b) => (a.specificity - b.specificity) || (a.order - b.order));
-    return matched.reduce((props, rule) => Object.assign(props, rule.props), {});
+        .filter((rule) => matchesCssRule(elementCtx, ancestors, rule))
+        .sort((a, b) => a.specificity - b.specificity || a.order - b.order);
+    return matched.reduce((props, rule) => Object.assign(props, rule.props), {} as Record<string, string>);
 };
 
-const toPacerStyle = (props, { block = false } = {}) => {
-    const style = {};
-    const assign = (cssName, reactName = cssName.replace(/-([a-z])/g, (_, c) => c.toUpperCase())) => {
+const toPacerStyle = (
+    props: Record<string, string>,
+    { block = false } = {} as { block?: boolean },
+): CSSProperties => {
+    const style: Record<string, string> = {};
+    const assign = (cssName: string, reactName: string = cssName.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase())) => {
         if (props[cssName]) style[reactName] = props[cssName];
     };
-    const assignBox = (cssName, reactPrefix) => {
+    const assignBox = (cssName: string, reactPrefix: string) => {
         const value = props[cssName];
         if (!value) return;
         const parts = value.split(/\s+/).filter(Boolean);
@@ -243,13 +270,13 @@ const toPacerStyle = (props, { block = false } = {}) => {
         assign('padding-right');
     }
 
-    return style;
+    return style as CSSProperties;
 };
 
-const countPacerWords = (text) => {
+const countPacerWords = (text: string): number => {
     if (!text) return 0;
     return text
-        .replace(/â€”/g, ' ')
+        .replace(/â€"/g, ' ')
         .replace(/-/g, '- ')
         .trim()
         .split(/\s+/)
@@ -260,11 +287,15 @@ const countPacerWords = (text) => {
 /**
  * Resolves image layout metadata from its nearest block ancestor's CSS context.
  */
-const resolveImageLayout = (parentCtx, cssRules, ancestors = []) => {
-    const layout = { align: 'center', maxWidth: null, fullWidth: false };
-    const props = Object.assign(
+const resolveImageLayout = (
+    parentCtx: ElementContext | null,
+    cssRules: CssRule[],
+    ancestors: ElementContext[] = [],
+): ImageLayout => {
+    const layout: ImageLayout = { align: 'center', maxWidth: null, fullWidth: false };
+    const props: Record<string, string> = Object.assign(
         {},
-        resolveCssProps(parentCtx || {}, ancestors, cssRules),
+        resolveCssProps(parentCtx || ({ tagName: null, id: '', classes: [], inlineStyle: '' } as ElementContext), ancestors, cssRules),
         parseInlineStyle(parentCtx?.inlineStyle || ''),
     );
     if (props['text-align'] === 'right') layout.align = 'right';
@@ -285,13 +316,12 @@ const resolveImageLayout = (parentCtx, cssRules, ancestors = []) => {
 
 /**
  * Normalizes a relative EPUB path by resolving ../ and ./ segments.
- * E.g., "../Text/ch1.xhtml" → "Text/ch1.xhtml", "./Text/ch1.xhtml" → "Text/ch1.xhtml"
  */
-const normalizeEpubPath = (path) => {
-    let decoded;
+const normalizeEpubPath = (path: string): string => {
+    let decoded: string;
     try { decoded = decodeURIComponent(path); } catch { decoded = path; }
     const parts = decoded.split('/');
-    const resolved = [];
+    const resolved: string[] = [];
     for (const part of parts) {
         if (part === '..') {
             resolved.pop();
@@ -302,23 +332,18 @@ const normalizeEpubPath = (path) => {
     return resolved.join('/');
 };
 
-/**
- * Extracts just the filename from a path (e.g., "Text/ch1.xhtml" → "ch1.xhtml").
- */
+const extractTextFromEpubBody = (body: HTMLElement): string => {
+    const parts: string[] = [];
 
-
-const extractTextFromEpubBody = (body) => {
-    const parts = [];
-
-    const walk = (node) => {
+    const walk = (node: ChildNode): void => {
         if (node.nodeType === 3) {
-            parts.push(node.textContent.replace(/\s+/g, ' '));
+            parts.push(node.textContent!.replace(/\s+/g, ' '));
             return;
         }
 
         if (node.nodeType !== 1) return;
 
-        const tagName = node.tagName;
+        const tagName = (node as HTMLElement).tagName;
         const isBlock = EPUB_BLOCK_TAGS.has(tagName);
 
         if (isBlock) appendBreak(parts);
@@ -341,10 +366,16 @@ const extractTextFromEpubBody = (body) => {
 };
 
 /**
- * Resolves text formatting (alignment, font-family, font-style) for a block element from its CSS context.
+ * Resolves text formatting for a block element from its CSS context.
  */
-const resolveElementFormatting = (elementCtx, inherited, cssRules, ancestors, { block = false } = {}) => {
-    const props = Object.assign(
+const resolveElementFormatting = (
+    elementCtx: ElementContext,
+    inherited: { props: Record<string, string>; style: CSSProperties } | null,
+    cssRules: CssRule[],
+    ancestors: ElementContext[],
+    { block = false } = {} as { block?: boolean },
+): { props: Record<string, string>; style: CSSProperties } => {
+    const props: Record<string, string> = Object.assign(
         {},
         inherited?.props || {},
         resolveCssProps(elementCtx, ancestors, cssRules),
@@ -354,22 +385,19 @@ const resolveElementFormatting = (elementCtx, inherited, cssRules, ancestors, { 
 };
 
 /**
- * Merges inherited formatting with element-specific formatting.
- * Element's own values override inherited ones.
+ * Gets context info from a DOM node.
  */
-const getElementCtx = (node) => ({
+const getElementCtx = (node: HTMLElement | Element): ElementContext => ({
     tagName: node.tagName,
     id: node.getAttribute?.('id') || '',
-    classes: Array.from(node.classList || []),
+    classes: Array.from((node as HTMLElement).classList || []),
     inlineStyle: node.getAttribute?.('style') || '',
 });
 
 /**
  * Parses an EPUB file and returns chapter metadata.
- * @param {File} file
- * @returns {Promise<{title: string, author: string, chapters: {index: number, label: string, wordCount: number}[]}>}
  */
-export const parseEpubChapters = async (file) => {
+export const parseEpubChapters = async (file: File): Promise<{ title: string; author: string; chapters: EpubChapter[] }> => {
     const ePub = await loadEpubFactory();
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
@@ -379,28 +407,25 @@ export const parseEpubChapters = async (file) => {
     const title = metadata.title || file.name.replace(/\.epub$/i, '');
     const author = metadata.creator || '';
 
-    // Collect all spine hrefs in reading order
-    const spineHrefs = [];
+    const spineHrefs: string[] = [];
     book.spine.each((section) => {
         spineHrefs.push(section.href);
     });
 
-    // Flatten TOC into an ordered list of { label, href } entries
-    const tocEntries = [];
-    function flattenToc(items) {
+    const tocEntries: { label: string; href: string }[] = [];
+    function flattenToc(items: { label: string; href?: string; subitems?: unknown[] }[]): void {
         for (const item of items) {
             if (item.href) {
                 const baseHref = normalizeEpubPath(item.href.split('#')[0]);
                 tocEntries.push({ label: item.label, href: baseHref });
             }
-            if (item.subitems?.length) flattenToc(item.subitems);
+            if (item.subitems?.length) flattenToc(item.subitems as { label: string; href?: string; subitems?: unknown[] }[]);
         }
     }
     if (book.navigation?.toc) flattenToc(book.navigation.toc);
 
-    // If there's no TOC or it has no entries, put everything in one chapter
     if (tocEntries.length === 0) {
-        const chapters = [{
+        const chapters: EpubChapter[] = [{
             index: 0,
             label: 'Full Text',
             hrefs: spineHrefs.length > 0 ? spineHrefs : [''],
@@ -425,25 +450,21 @@ export const parseEpubChapters = async (file) => {
         return { title, author, chapters };
     }
 
-    // Build chapters directly from TOC entries
-    const chapters = tocEntries.map((entry, i) => ({
+    const chapters: EpubChapter[] = tocEntries.map((entry, i) => ({
         index: i,
         label: entry.label,
         hrefs: [entry.href],
         wordCount: 0,
     }));
 
-    // Group spine sections not covered by any TOC entry
-    const coveredHrefs = new Set(chapters.flatMap(c => c.hrefs));
+    const coveredHrefs = new Set(chapters.flatMap((c) => c.hrefs));
 
-    // Collect spine sections that appear BEFORE the first TOC entry
-    const leadingOrphans = [];
+    const leadingOrphans: string[] = [];
     for (const href of spineHrefs) {
         if (coveredHrefs.has(normalizeEpubPath(href))) break;
         leadingOrphans.push(href);
     }
 
-    // Prepend an "Introduction" chapter for leading orphans
     if (leadingOrphans.length > 0) {
         chapters.unshift({
             index: 0,
@@ -451,11 +472,9 @@ export const parseEpubChapters = async (file) => {
             hrefs: leadingOrphans,
             wordCount: 0,
         });
-        // Re-index chapters
         chapters.forEach((ch, i) => ch.index = i);
     }
 
-    // Group remaining orphan sections (between or after TOC entries) into nearest chapter
     for (const href of spineHrefs) {
         if (coveredHrefs.has(normalizeEpubPath(href))) continue;
         if (leadingOrphans.includes(href)) continue;
@@ -463,7 +482,7 @@ export const parseEpubChapters = async (file) => {
         const spineIdx = spineHrefs.indexOf(href);
         let bestChapter = chapters[chapters.length - 1];
         for (let i = chapters.length - 1; i >= 0; i--) {
-            const chapterHrefs = chapters[i].hrefs.map(h => spineHrefs.indexOf(h)).filter(idx => idx >= 0);
+            const chapterHrefs = chapters[i].hrefs.map((h) => spineHrefs.indexOf(h)).filter((idx) => idx >= 0);
             const nearestSpineIdx = Math.max(...chapterHrefs);
             if (nearestSpineIdx < spineIdx) {
                 bestChapter = chapters[i];
@@ -481,7 +500,6 @@ export const parseEpubChapters = async (file) => {
                 if (doc && doc.body) {
                     const text = extractTextFromEpubBody(doc.body);
                     totalWords += text.trim().split(/\s+/).filter(Boolean).length;
-                    // Also count SVG <image> and <img> tags that DOM walk misses
                     const html = doc.body.innerHTML || '';
                     const imgCount = (html.match(/<image\b/gi) || []).length + (html.match(/<img\b/gi) || []).length;
                     totalWords += imgCount;
@@ -499,17 +517,14 @@ export const parseEpubChapters = async (file) => {
 
 /**
  * Extracts text from selected chapters of an EPUB file.
- * @param {File} file
- * @param {number[]} indices - Chapter indices to extract (from parseEpubChapters)
- * @returns {Promise<string>}
  */
-export const extractEpubChaptersText = async (file, chapters) => {
+export const extractEpubChaptersText = async (file: File, chapters: EpubChapter[]): Promise<string> => {
     const ePub = await loadEpubFactory();
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
     await book.ready;
 
-    const texts = [];
+    const texts: string[] = [];
     for (const chapter of chapters) {
         for (const href of chapter.hrefs) {
             try {
@@ -529,31 +544,29 @@ export const extractEpubChaptersText = async (file, chapters) => {
 
 /**
  * Extracts text and images from selected EPUB chapters.
- * Images are converted to data URLs and referenced via ¶IMG:N¶ tokens in the text.
- * Each image entry includes layout metadata resolved from the epub's CSS.
- * @param {File} file
- * @param {{hrefs: string[], label: string}[]} chapters
- * @returns {Promise<{text: string, images: {src: string, align: string, maxWidth: string|null, fullWidth: boolean, inline: boolean}[]}>}
  */
-export const extractEpubContentWithImages = async (file, chapters) => {
+export const extractEpubContentWithImages = async (
+    file: File,
+    chapters: { hrefs: string[]; label: string }[],
+): Promise<EpubContentResult> => {
     const ePub = await loadEpubFactory();
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
     await book.ready;
 
-    const images = [];
-    const imageIndexBySrc = new Map();
-    const cssRules = [];
-    const fontFaces = [];
-    const loadedCssHrefs = new Set();
+    const images: EpubImage[] = [];
+    const imageIndexBySrc = new Map<string, number>();
+    const cssRules: CssRule[] = [];
+    const fontFaces: Record<string, string>[] = [];
+    const loadedCssHrefs = new Set<string>();
 
-    const resolveImgSrc = (src, baseHref) => {
+    const resolveImgSrc = (src: string, baseHref: string): string => {
         try {
             const baseParts = baseHref.split('/');
             baseParts.pop();
             const srcParts = src.split('/');
             const resolved = [...baseParts, ...srcParts];
-            const final = [];
+            const final: string[] = [];
             for (const part of resolved) {
                 if (part === '..') final.pop();
                 else if (part !== '.' && part !== '') final.push(part);
@@ -564,19 +577,19 @@ export const extractEpubContentWithImages = async (file, chapters) => {
         }
     };
 
-    const getImageToken = async (src, baseHref, layout) => {
+    const getImageToken = async (src: string, baseHref: string, layout: ImageLayout): Promise<string | null> => {
         const resolved = resolveImgSrc(src, baseHref);
         if (imageIndexBySrc.has(resolved)) {
             return `¶IMG:${imageIndexBySrc.get(resolved)}¶`;
         }
         try {
-            let dataUrl = null;
+            let dataUrl: string | null = null;
             if (book.archive && typeof book.archive.getBlob === 'function') {
                 const blob = await book.archive.getBlob('/' + resolved);
                 if (blob) {
-                    dataUrl = await new Promise((resolve) => {
+                    dataUrl = await new Promise<string | null>((resolve) => {
                         const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result);
+                        reader.onload = () => resolve(reader.result as string);
                         reader.onerror = () => resolve(null);
                         reader.readAsDataURL(blob);
                     });
@@ -593,22 +606,31 @@ export const extractEpubContentWithImages = async (file, chapters) => {
         }
     };
 
-    const extractTextAndImagesFromBody = async (body, baseHref) => {
-        const parts = [];
-        const paraFormatting = [];
-        const visualBlocks = [];
-        const blockStyleRanges = [];
-        const wordStyles = [];
+    const extractTextAndImagesFromBody = async (
+        body: HTMLElement,
+        baseHref: string,
+    ): Promise<{
+        text: string;
+        paraFormatting: CSSProperties[];
+        visualBlocks: VisualBlock[];
+        blockStyleRanges: BlockStyleRange[];
+        wordStyles: CSSProperties[];
+    }> => {
+        const parts: string[] = [];
+        const paraFormatting: CSSProperties[] = [];
+        const visualBlocks: VisualBlock[] = [];
+        const blockStyleRanges: BlockStyleRange[] = [];
+        const wordStyles: CSSProperties[] = [];
         let wordIndex = 0;
         let currentParaIndex = -1;
         let currentParaHasText = false;
-        let currentBlockStyleRange = null;
-        let currentVisualBlock = null;
+        let currentBlockStyleRange: BlockStyleRange | null = null;
+        let currentVisualBlock: VisualBlock | null = null;
 
         const bodyCtx = getElementCtx(body);
         const inheritedFormatting = resolveElementFormatting(bodyCtx, null, cssRules, [], { block: true });
 
-        const pushText = (value, fmt) => {
+        const pushText = (value: string, fmt: { props: Record<string, string>; style: CSSProperties } | null): void => {
             const normalized = value.replace(/\s+/g, ' ');
             if (!normalized.trim()) {
                 parts.push(normalized);
@@ -638,7 +660,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             }
         };
 
-        const pushImageToken = (token, fmt) => {
+        const pushImageToken = (token: string, fmt: { props: Record<string, string>; style: CSSProperties } | null): void => {
             if (currentParaIndex < 0 || !currentParaHasText) {
                 currentParaIndex += 1;
                 paraFormatting[currentParaIndex] = fmt?.style || {};
@@ -661,7 +683,7 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             }
         };
 
-        const pushParaBreak = () => {
+        const pushParaBreak = (): void => {
             if (parts.length > 0) {
                 const last = parts[parts.length - 1];
                 if (last === '\n\n') return;
@@ -673,27 +695,32 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             currentVisualBlock = null;
         };
 
-        const pushLineBreak = () => {
+        const pushLineBreak = (): void => {
             if (parts.length > 0 && parts[parts.length - 1] !== '\n') {
                 parts.push('\n');
                 if (currentVisualBlock) currentVisualBlock.text += '\n';
             }
         };
 
-        const walk = async (node, blockCtx, inheritedFmt, ancestors) => {
+        const walk = async (
+            node: ChildNode,
+            blockCtx: ElementContext | null,
+            inheritedFmt: { props: Record<string, string>; style: CSSProperties } | null,
+            ancestors: ElementContext[],
+        ): Promise<void> => {
             if (node.nodeType === 3) {
-                pushText(node.textContent, inheritedFmt);
+                pushText(node.textContent!, inheritedFmt);
                 return;
             }
             if (node.nodeType !== 1) return;
 
-            const tagName = node.tagName;
+            const tagName = (node as HTMLElement).tagName;
             if (tagName?.toLowerCase() === 'br') {
                 pushLineBreak();
                 return;
             }
 
-            const elementCtx = getElementCtx(node);
+            const elementCtx = getElementCtx(node as HTMLElement);
             const elementFmt = resolveElementFormatting(
                 elementCtx,
                 inheritedFmt,
@@ -703,9 +730,9 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             );
 
             if (tagName === 'IMG') {
-                const imgSrc = node.getAttribute('src');
+                const imgSrc = (node as HTMLElement).getAttribute('src');
                 if (imgSrc) {
-                    const layout = blockCtx
+                    const layout: ImageLayout = blockCtx
                         ? resolveImageLayout(blockCtx, cssRules, ancestors)
                         : { align: 'center', maxWidth: null, fullWidth: false, inline: false };
                     const token = await getImageToken(imgSrc, baseHref, layout);
@@ -735,16 +762,14 @@ export const extractEpubContentWithImages = async (file, chapters) => {
 
         await walk(body, null, inheritedFormatting, []);
 
-        // Fallback: scan raw HTML for SVG <image> tags that the DOM walk misses
-        // due to XML namespace issues in epubjs-loaded documents
         const html = body.innerHTML || '';
         const svgImageRe = /<image\b[^>]*(?:xlink:)?href="([^"]+)"/gi;
-        let match;
-        const svgSrcs = [];
+        let match: RegExpExecArray | null;
+        const svgSrcs: { src: string; layout: ImageLayout }[] = [];
         while ((match = svgImageRe.exec(html)) !== null) {
             const before = html.substring(0, match.index);
             const tagMatch = before.match(/<(?:div|p|figure|section|td)[^>]*class="([^"]*)"[^>]*>\s*$/i);
-            const parentCtx = {
+            const parentCtx: ElementContext = {
                 tagName: null,
                 id: '',
                 classes: tagMatch ? tagMatch[1].split(/\s+/) : [],
@@ -772,22 +797,21 @@ export const extractEpubContentWithImages = async (file, chapters) => {
             text,
             paraFormatting,
             visualBlocks: visualBlocks
-                .map(block => ({ ...block, text: block.text.trim() }))
-                .filter(block => block.text),
+                .map((block) => ({ ...block, text: block.text.trim() }))
+                .filter((block) => block.text),
             blockStyleRanges,
             wordStyles,
         };
     };
 
-    // Load CSS from chapter link tags
-    const loadCssForChapter = async (href) => {
+    const loadCssForChapter = async (href: string): Promise<void> => {
         try {
             const doc = await book.load(href);
             if (!doc) return;
             const links = doc.querySelectorAll('link[rel="stylesheet"], link[type="text/css"]');
-            for (const link of links) {
+            for (const link of Array.from(links)) {
                 const cssHref = link.getAttribute('href');
-                const resolved = resolveImgSrc(cssHref, href);
+                const resolved = resolveImgSrc(cssHref!, href);
                 if (!cssHref || loadedCssHrefs.has(resolved)) continue;
                 loadedCssHrefs.add(resolved);
                 try {
@@ -810,11 +834,10 @@ export const extractEpubContentWithImages = async (file, chapters) => {
         }
     }
 
-    // Extract font files and build @font-face CSS with base64 data URLs
     let fontFaceCSS = '';
     if (fontFaces.length > 0) {
         const fontSrcRe = /url\(([^)]+)\)/;
-        const fontFaceBlocks = [];
+        const fontFaceBlocks: string[] = [];
         for (const ff of fontFaces) {
             const srcRaw = ff['src'];
             if (!srcRaw) continue;
@@ -826,15 +849,15 @@ export const extractEpubContentWithImages = async (file, chapters) => {
                 if (book.archive && typeof book.archive.getBlob === 'function') {
                     const blob = await book.archive.getBlob('/' + resolved);
                     if (blob) {
-                        const dataUrl = await new Promise((resolve) => {
+                        const dataUrl = await new Promise<string | null>((resolve) => {
                             const reader = new FileReader();
-                            reader.onload = () => resolve(reader.result);
+                            reader.onload = () => resolve(reader.result as string);
                             reader.onerror = () => resolve(null);
                             reader.readAsDataURL(blob);
                         });
                         if (dataUrl) {
                             const srcUpdated = srcRaw.replace(fontPath, dataUrl);
-                            const parts = [];
+                            const parts: string[] = [];
                             if (ff['font-family']) parts.push(`font-family: ${ff['font-family']}`);
                             if (ff['font-weight']) parts.push(`font-weight: ${ff['font-weight']}`);
                             if (ff['font-style']) parts.push(`font-style: ${ff['font-style']}`);
@@ -850,11 +873,11 @@ export const extractEpubContentWithImages = async (file, chapters) => {
         }
     }
 
-    const texts = [];
-    const allParaFormatting = [];
-    const allVisualBlocks = [];
-    const allBlockStyleRanges = [];
-    const allWordStyles = [];
+    const texts: string[] = [];
+    const allParaFormatting: CSSProperties[] = [];
+    const allVisualBlocks: VisualBlock[] = [];
+    const allBlockStyleRanges: BlockStyleRange[] = [];
+    const allWordStyles: CSSProperties[] = [];
     for (const chapter of chapters) {
         for (const href of chapter.hrefs) {
             try {
@@ -865,12 +888,12 @@ export const extractEpubContentWithImages = async (file, chapters) => {
                     texts.push(result.text);
                     allParaFormatting.push(...result.paraFormatting);
                     allWordStyles.push(...result.wordStyles);
-                    allVisualBlocks.push(...result.visualBlocks.map(block => ({
+                    allVisualBlocks.push(...result.visualBlocks.map((block) => ({
                         ...block,
                         start: block.start + wordOffset,
                         end: block.end + wordOffset,
                     })));
-                    allBlockStyleRanges.push(...result.blockStyleRanges.map(range => ({
+                    allBlockStyleRanges.push(...result.blockStyleRanges.map((range) => ({
                         ...range,
                         start: range.start + wordOffset,
                         end: range.end + wordOffset,
@@ -896,19 +919,19 @@ export const extractEpubContentWithImages = async (file, chapters) => {
 
 /**
  * Extracts text from each chapter separately, returning per-chapter texts.
- * @param {File} file
- * @param {{hrefs: string[]}[]} chapters
- * @returns {Promise<string[]>}
  */
-export const extractEpubPerChapterTexts = async (file, chapters) => {
+export const extractEpubPerChapterTexts = async (
+    file: File,
+    chapters: { hrefs: string[]; label: string }[],
+): Promise<string[]> => {
     const ePub = await loadEpubFactory();
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
     await book.ready;
 
-    const results = [];
+    const results: string[] = [];
     for (const chapter of chapters) {
-        const parts = [];
+        const parts: string[] = [];
         for (const href of chapter.hrefs) {
             try {
                 const doc = await book.load(href);
@@ -928,17 +951,14 @@ export const extractEpubPerChapterTexts = async (file, chapters) => {
 
 /**
  * Extracts all text from every chapter of an EPUB file.
- * Used as fallback when loadFileContent is called directly.
- * @param {File} file
- * @returns {Promise<string>}
  */
-const extractEpubFullText = async (file) => {
+const extractEpubFullText = async (file: File): Promise<string> => {
     const ePub = await loadEpubFactory();
     const arrayBuffer = await file.arrayBuffer();
     const book = ePub(arrayBuffer);
     await book.ready;
 
-    const texts = [];
+    const texts: Promise<string>[] = [];
     book.spine.each((section) => {
         const p = book.load(section.href).then((doc) => {
             if (doc && doc.body) return extractTextFromEpubBody(doc.body);
@@ -954,11 +974,9 @@ const extractEpubFullText = async (file) => {
 
 /**
  * Universal loader based on file extension.
- * @param {File} file 
- * @returns {Promise<string>}
  */
-export const loadFileContent = async (file) => {
-    const extension = file.name.split('.').pop().toLowerCase();
+export const loadFileContent = async (file: File): Promise<string> => {
+    const extension = file.name.split('.').pop()!.toLowerCase();
 
     switch (extension) {
         case 'pdf':

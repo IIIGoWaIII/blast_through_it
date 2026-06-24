@@ -1,8 +1,26 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { parseTextToWords } from '../utils/textParser';
 import { isMobile } from '../utils/device';
+import type { CSSProperties } from 'react';
+import type { EpubImage, LineHighlight, VisualLine, VisualBlock, BlockStyleRange } from '../types';
 
-function smoothScrollTo(el, target, animationRef, duration = 250) {
+interface VisualPacerDisplayProps {
+  text: string;
+  currentIndex: number;
+  pacerStyle: 'line' | 'word';
+  isPlaying: boolean;
+  wordProgress: number;
+  wpm: number;
+  lineStartRef: React.RefObject<number>;
+  images?: EpubImage[];
+  blockFormatting?: CSSProperties[] | null;
+  visualBlocks?: VisualBlock[] | null;
+  blockStyleRanges?: BlockStyleRange[] | null;
+  wordStyles?: CSSProperties[] | null;
+  onWordsPerLineChange?: (count: number) => void;
+}
+
+function smoothScrollTo(el: HTMLDivElement, target: number, animationRef: React.MutableRefObject<number | null>, duration: number = 250) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
 
     const start = el.scrollTop;
@@ -15,7 +33,7 @@ function smoothScrollTo(el, target, animationRef, duration = 250) {
     }
 
     const startTime = performance.now();
-    function step(now) {
+    function step(now: number) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
@@ -29,11 +47,11 @@ function smoothScrollTo(el, target, animationRef, duration = 250) {
     animationRef.current = requestAnimationFrame(step);
 }
 
-function cancelScrollAnimation(animationRef) {
+function cancelScrollAnimation(animationRef: React.MutableRefObject<number | null>) {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
 }
 
-function getFirstRect(el) {
+function getFirstRect(el: Element) {
     return el.getClientRects()[0] ?? el.getBoundingClientRect();
 }
 
@@ -56,26 +74,26 @@ const BLOCK_STYLE_KEYS = new Set([
     'paddingLeft',
 ]);
 
-const pickBlockStyle = (style = {}) => Object.fromEntries(
+const pickBlockStyle = (style: CSSProperties = {}): CSSProperties => Object.fromEntries(
     Object.entries(style).filter(([key]) => BLOCK_STYLE_KEYS.has(key)),
-);
+) as CSSProperties;
 
-const pickInlineStyle = (style = {}) => Object.fromEntries(
+const pickInlineStyle = (style: CSSProperties = {}): CSSProperties => Object.fromEntries(
     Object.entries(style).filter(([key]) => !BLOCK_STYLE_KEYS.has(key)),
-);
+) as CSSProperties;
 
-const findBlockStyleForWord = (blockStyleRanges, wordIndex) => (
+const findBlockStyleForWord = (blockStyleRanges: BlockStyleRange[] | null | undefined, wordIndex: number): CSSProperties | null => (
     blockStyleRanges?.find(range => wordIndex >= range.start && wordIndex <= range.end)?.style || null
 );
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, onWordsPerLineChange }) => {
-    const containerRef = useRef(null);
-    const scrollAnimationRef = useRef(null);
-    const previousWindowStartRef = useRef(null);
-    const prevTopSpacerRef = useRef(0);
+const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, onWordsPerLineChange }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const scrollAnimationRef = useRef<number | null>(null);
+    const previousWindowStartRef = useRef<number | null>(null);
+    const prevTopSpacerRef = useRef<number>(0);
     const useInstantScroll = useMemo(() => isMobile(), []);
-    const [measuredLineHeight, setMeasuredLineHeight] = useState(ESTIMATED_LINE_HEIGHT_PX);
-    const [lineHighlight, setLineHighlight] = useState(null);
+    const [measuredLineHeight, setMeasuredLineHeight] = useState<number>(ESTIMATED_LINE_HEIGHT_PX);
+    const [lineHighlight, setLineHighlight] = useState<LineHighlight | null>(null);
 
     useEffect(() => {
         return () => cancelScrollAnimation(scrollAnimationRef);
@@ -85,7 +103,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     // Visual line mode measures rendered rows below, so wrapped text follows the device width.
     const lines = useMemo(() => {
         if (visualBlocks?.length) {
-            const result = [];
+            const result: VisualLine[] = [];
 
             for (let blockIdx = 0; blockIdx < visualBlocks.length; blockIdx++) {
                 const block = visualBlocks[blockIdx];
@@ -119,7 +137,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
         if (!text) return [];
         const paragraphs = text.split(/\n\n+/);
-        const result = [];
+        const result: VisualLine[] = [];
         let wordIdx = 0;
 
         for (let paraIdx = 0; paraIdx < paragraphs.length; paraIdx++) {
@@ -128,7 +146,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             for (const line of paraLines) {
                 const lineWords = parseTextToWords(line);
                 const startIndex = wordIdx;
-                const lineData = {
+                const lineData: VisualLine = {
                     startIndex,
                     endIndex: startIndex + lineWords.length - 1,
                     words: lineWords.map((w) => ({ text: w, globalIndex: wordIdx++ })),
@@ -161,7 +179,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     const visibleLines = useMemo(() => {
         if (!lines.length) return [];
 
-        return lines.reduce((result, line, lineIdx) => {
+        return lines.reduce<VisualLine[]>((result, line, lineIdx) => {
             if (line.isBlank) {
                 if (line.startIndex >= renderWindow.start && line.startIndex <= renderWindow.end) {
                     result.push({ ...line, lineIdx });
@@ -193,7 +211,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             return undefined;
         }
 
-        let frameId = null;
+        let frameId: number | null = null;
 
         const measureCurrentVisualLine = () => {
             const container = containerRef.current;
@@ -207,30 +225,30 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             const containerRect = container.getBoundingClientRect();
             const elRect = getFirstRect(currentEl);
             const currentCenter = elRect.top + (elRect.height / 2);
-            const sameLineWordEls = (() => {
+            const sameLineWordEls: Element[] = (() => {
                 const lineEl = currentEl.closest('[data-line-index]');
                 if (!lineEl) return [];
                 return Array.from(lineEl.querySelectorAll('[data-word-index]'))
                     .filter((wordEl) => {
-                        const rect = getFirstRect(wordEl);
+                    const rect = getFirstRect(wordEl as HTMLElement);
                         return currentCenter >= rect.top && currentCenter <= rect.bottom;
                     });
             })();
             const sameLineWords = sameLineWordEls
-                .map((wordEl) => Number(wordEl.dataset.wordIndex))
+                .map((wordEl) => Number((wordEl as HTMLElement).dataset.wordIndex))
                 .filter(Number.isFinite);
             const sameLineRects = sameLineWordEls.map(getFirstRect);
             const left = Math.min(...sameLineRects.map((rect) => rect.left));
             const right = Math.max(...sameLineRects.map((rect) => rect.right));
-            const wordBounds = sameLineWordEls.reduce((bounds, wordEl) => {
+            const wordBounds = sameLineWordEls.reduce<{ [wordIndex: number]: { left: number; width: number } }>((bounds, wordEl) => {
                 const rect = getFirstRect(wordEl);
-                bounds[Number(wordEl.dataset.wordIndex)] = {
+                bounds[Number((wordEl as HTMLElement).dataset.wordIndex)] = {
                     left: rect.left - left,
                     width: rect.width,
                 };
                 return bounds;
             }, {});
-            const nextHighlight = {
+            const nextHighlight: LineHighlight = {
                 left: left - containerRect.left + container.scrollLeft - 4,
                 top: elRect.top - containerRect.top + container.scrollTop - 4,
                 width: right - left + 8,
@@ -241,7 +259,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             };
 
             if (lineStartRef) {
-                lineStartRef.current = nextHighlight.startIndex;
+                (lineStartRef as React.MutableRefObject<number>).current = nextHighlight.startIndex;
             }
 
             setLineHighlight((prev) => {
@@ -268,7 +286,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
         scheduleMeasure();
 
         const container = containerRef.current;
-        let observer = null;
+        let observer: ResizeObserver | null = null;
         if (typeof ResizeObserver !== 'undefined') {
             observer = new ResizeObserver(scheduleMeasure);
             observer.observe(container);
@@ -294,7 +312,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
             let totalHeight = 0;
             let count = 0;
             lineEls.forEach((el) => {
-                totalHeight += el.offsetHeight;
+                totalHeight += (el as HTMLElement).offsetHeight;
                 count++;
             });
 
@@ -315,7 +333,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
     useLayoutEffect(() => {
         if (!containerRef.current || !onWordsPerLineChange) return;
 
-        let frameId;
+        let frameId: number;
 
         const measure = () => {
             frameId = requestAnimationFrame(() => {
@@ -325,30 +343,30 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                 // Find the longest source line in the visible window — it's the best
                 // candidate for measuring how many words fit on one visual line.
                 const lineEls = container.querySelectorAll('[data-line-index]');
-                let bestLineEl = null;
+                let bestLineEl: Element | null = null;
                 let maxWords = 0;
 
-                lineEls.forEach((el) => {
+                for (const el of lineEls) {
                     const count = el.querySelectorAll('[data-word-index]').length;
                     if (count > maxWords) {
                         maxWords = count;
                         bestLineEl = el;
                     }
-                });
+                }
 
                 if (!bestLineEl || maxWords < 3) return;
 
-                const wordEls = Array.from(bestLineEl.querySelectorAll('[data-word-index]'));
+                const wordEls = Array.from(bestLineEl.querySelectorAll<HTMLElement>('[data-word-index]'));
 
                 // Measure how many consecutive words share the same vertical position
                 // (i.e., are on the same visual/wrapped line).
-                const firstRect = getFirstRect(wordEls[0]);
+                const firstRect = getFirstRect(wordEls[0] as HTMLElement);
                 const firstCenter = firstRect.top + firstRect.height / 2;
                 const threshold = firstRect.height * 0.4;
 
                 let count = 0;
                 for (const wordEl of wordEls) {
-                    const rect = getFirstRect(wordEl);
+                    const rect = getFirstRect(wordEl as HTMLElement);
                     const center = rect.top + rect.height / 2;
                     if (Math.abs(center - firstCenter) <= threshold) {
                         count++;
@@ -365,7 +383,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
         measure();
 
-        let observer;
+        let observer: ResizeObserver | undefined;
         if (typeof ResizeObserver !== 'undefined') {
             observer = new ResizeObserver(measure);
             observer.observe(containerRef.current);
@@ -533,7 +551,7 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
                                                     const imgIdx = match ? parseInt(match[1], 10) : -1;
                                                     const imgData = images?.[imgIdx];
                                                     const src = typeof imgData === 'string' ? imgData : imgData?.src;
-                                                    const layout = typeof imgData === 'object' ? imgData : {};
+                                                    const layout = typeof imgData === 'object' ? imgData : {} as EpubImage;
 
                                                     if (!src) {
                                                         return <span data-word-index={word.globalIndex} className={wordClass}>{word.text}</span>;
