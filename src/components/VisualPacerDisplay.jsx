@@ -68,7 +68,7 @@ const findBlockStyleForWord = (blockStyleRanges, wordIndex) => (
     blockStyleRanges?.find(range => wordIndex >= range.start && wordIndex <= range.end)?.style || null
 );
 
-const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles }) => {
+const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, onWordsPerLineChange }) => {
     const containerRef = useRef(null);
     const scrollAnimationRef = useRef(null);
     const previousWindowStartRef = useRef(null);
@@ -308,6 +308,77 @@ const VisualPacerDisplay = ({ text, currentIndex, pacerStyle, isPlaying, wordPro
 
         return () => cancelAnimationFrame(frameId);
     }, [renderWindow.start, renderWindow.end]);
+
+    // Measure actual words per visual line from rendered DOM and report to parent.
+    // This lets calculateReadingTime() use accurate wrapping estimates that
+    // update when the container resizes or the user zooms.
+    useLayoutEffect(() => {
+        if (!containerRef.current || !onWordsPerLineChange) return;
+
+        let frameId;
+
+        const measure = () => {
+            frameId = requestAnimationFrame(() => {
+                const container = containerRef.current;
+                if (!container) return;
+
+                // Find the longest source line in the visible window — it's the best
+                // candidate for measuring how many words fit on one visual line.
+                const lineEls = container.querySelectorAll('[data-line-index]');
+                let bestLineEl = null;
+                let maxWords = 0;
+
+                lineEls.forEach((el) => {
+                    const count = el.querySelectorAll('[data-word-index]').length;
+                    if (count > maxWords) {
+                        maxWords = count;
+                        bestLineEl = el;
+                    }
+                });
+
+                if (!bestLineEl || maxWords < 3) return;
+
+                const wordEls = Array.from(bestLineEl.querySelectorAll('[data-word-index]'));
+
+                // Measure how many consecutive words share the same vertical position
+                // (i.e., are on the same visual/wrapped line).
+                const firstRect = getFirstRect(wordEls[0]);
+                const firstCenter = firstRect.top + firstRect.height / 2;
+                const threshold = firstRect.height * 0.4;
+
+                let count = 0;
+                for (const wordEl of wordEls) {
+                    const rect = getFirstRect(wordEl);
+                    const center = rect.top + rect.height / 2;
+                    if (Math.abs(center - firstCenter) <= threshold) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (count > 0) {
+                    onWordsPerLineChange(count);
+                }
+            });
+        };
+
+        measure();
+
+        let observer;
+        if (typeof ResizeObserver !== 'undefined') {
+            observer = new ResizeObserver(measure);
+            observer.observe(containerRef.current);
+        } else {
+            window.addEventListener('resize', measure);
+        }
+
+        return () => {
+            cancelAnimationFrame(frameId);
+            if (observer) observer.disconnect();
+            else window.removeEventListener('resize', measure);
+        };
+    }, [onWordsPerLineChange]);
 
     // Auto-scroll once the active word would move below the top quarter.
     // When the render window shifts, correct scrollTop by the spacer delta to preserve

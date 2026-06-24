@@ -216,7 +216,7 @@ function App() {
   const currentProgress = words.length > 1 ? (currentIndex / (words.length - 1)) * 100 : 0;
   const activeWordProgress = wordProgress.index === currentIndex ? wordProgress.value : 0;
 
-  const wordsPerLine = useMemo(() => isMobile() ? 4 : 10, []);
+  const [wordsPerLine, setWordsPerLine] = useState(() => isMobile() ? 4 : 10);
 
   const totalReadingSeconds = calculateReadingTime(words, wpm, lineStarts, wordsPerLine);
   const totalTime = formatTime(totalReadingSeconds);
@@ -340,6 +340,7 @@ function App() {
                 visualBlocks={epubVisualBlocks}
                 blockStyleRanges={epubBlockStyleRanges}
                 wordStyles={epubWordStyles}
+                onWordsPerLineChange={setWordsPerLine}
               />
             )}
 
