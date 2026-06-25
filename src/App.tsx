@@ -3,8 +3,9 @@ import ReaderDisplay from './components/ReaderDisplay';
 import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
+import SearchPanel from './components/SearchPanel';
 import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime } from './utils/textParser';
-import { ChevronLeft, Moon, BookOpen, AlignLeft } from 'lucide-react';
+import { ChevronLeft, Moon, BookOpen, AlignLeft, Search } from 'lucide-react';
 import { shouldSimplify, isMobile } from './utils/device';
 import { saveProgress } from './utils/epubProgress';
 import type { CSSProperties } from 'react';
@@ -47,6 +48,7 @@ function App() {
   const [epubBlockStyleRanges, setEpubBlockStyleRanges] = useState<BlockStyleRange[] | null>(null);
   const [epubWordStyles, setEpubWordStyles] = useState<CSSProperties[] | null>(null);
   const [epubFontFaceCSS, setEpubFontFaceCSS] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
@@ -169,7 +171,22 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts if user is typing in an input field
       const tag = document.activeElement?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+      const isInput = tag === 'TEXTAREA' || tag === 'INPUT';
+
+      // Ctrl+F / Cmd+F — open search (even in input fields)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (mode === 'reader') setSearchOpen(true);
+        return;
+      }
+
+      // Escape closes search if open
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        return;
+      }
+
+      if (isInput) return;
 
       switch (e.key.toLowerCase()) {
         case ' ':
@@ -216,7 +233,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, words.length]);
+  }, [mode, words.length, searchOpen]);
 
   const handleProgressChange = (val: number) => {
     const newIndex = Math.floor((val / 100) * (words.length - 1));
@@ -273,6 +290,16 @@ function App() {
       {/* Reader mode buttons — top right */}
       {mode === 'reader' && (
         <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
+          {/* Search button */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-12 h-12 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all bg-white/10 text-zinc-400 border border-white/10 hover:bg-white/20 hover:text-white"
+            aria-label="Search in text"
+            title="Search (Ctrl+F)"
+          >
+            <Search size={22} />
+          </button>
+
           {/* Reading mode toggle (RSVP vs Visual Pacer) */}
           <button
             onClick={() => setReadingMode(prev => prev === 'rsvp' ? 'visualPacer' : 'rsvp')}
@@ -396,6 +423,17 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Search Panel */}
+      {mode === 'reader' && (
+        <SearchPanel
+          isOpen={searchOpen}
+          text={text}
+          words={words}
+          onJumpToWord={handleJumpToWord}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
 
       {/* Shortcuts Toast/Hint */}
       {mode === 'reader' && (

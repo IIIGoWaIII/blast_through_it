@@ -81,3 +81,8 @@ body {
 .pacer-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Search match highlight */
+.search-match {
+  @apply bg-red-500/30 text-red-200 rounded px-0.5;
+}

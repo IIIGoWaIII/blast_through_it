@@ -128,3 +128,8 @@ export interface WordSplit {
   orp: string;
   post: string;
 }
+
+export interface SearchResult {
+  wordIndex: number;
+  context: string;
+}
