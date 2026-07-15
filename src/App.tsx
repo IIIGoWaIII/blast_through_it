@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReaderDisplay from './components/ReaderDisplay';
 import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
@@ -9,7 +9,7 @@ import { ChevronLeft, Moon, BookOpen, AlignLeft, Search } from 'lucide-react';
 import { shouldSimplify, isMobile } from './utils/device';
 import { saveProgress } from './utils/epubProgress';
 import type { CSSProperties } from 'react';
-import type { EpubImage, VisualBlock, BlockStyleRange, SavedSettings } from './types';
+import type { EpubImage, VisualBlock, BlockStyleRange, SavedSettings, TextSubmitPayload } from './types';
 
 function loadSettings(): SavedSettings {
   try {
@@ -26,7 +26,7 @@ function loadSettings(): SavedSettings {
 
 function App() {
   const simplified = shouldSimplify();
-  const settings = loadSettings();
+  const [settings] = useState(loadSettings);
 
   const [mode, setMode] = useState<'input' | 'reader'>('input');
   const [text, setText] = useState('');
@@ -49,6 +49,7 @@ function App() {
   const [epubWordStyles, setEpubWordStyles] = useState<CSSProperties[] | null>(null);
   const [epubFontFaceCSS, setEpubFontFaceCSS] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const paragraphStarts = useMemo(() => getNewParagraphIndices(text, words), [text, words]);
   const lineStarts = useMemo(() => getNewLineIndices(text, words), [text, words]);
@@ -56,6 +57,24 @@ function App() {
   const animationRef = useRef<number | null>(null);
   const currentLineStartRef = useRef<number>(-1);
   const prevLineStartRef = useRef<number>(-1);
+
+  // Rate-limited EPUB progress persistence: write at most once per second
+  // while position advances, and flush the latest payload on exit/unmount/pagehide.
+  const progressTimerRef = useRef<number | null>(null);
+  const lastProgressSaveRef = useRef<number>(0);
+  const pendingProgressRef = useRef<{ bookKey: string; data: Parameters<typeof saveProgress>[1] } | null>(null);
+
+  const flushProgress = useCallback(() => {
+    const pending = pendingProgressRef.current;
+    if (progressTimerRef.current !== null) {
+      clearTimeout(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    if (!pending) return;
+    saveProgress(pending.bookKey, pending.data);
+    pendingProgressRef.current = null;
+    lastProgressSaveRef.current = Date.now();
+  }, []);
 
   // Persist reading settings
   useEffect(() => {
@@ -72,33 +91,59 @@ function App() {
     return () => { styleEl.remove(); };
   }, [epubFontFaceCSS]);
 
-  // Save EPUB reading progress whenever index changes in reader mode
+  // Save EPUB reading progress, throttled to at most one write per second.
   useEffect(() => {
-    if (!epubBookKey || !epubTitle || !epubSelectedChapters || !epubSelectedChapterNames || words.length === 0 || mode !== 'reader') return;
-    saveProgress(epubBookKey, {
-      wordIndex: currentIndex,
-      totalWords: words.length,
-      title: epubTitle,
-      selectedChapters: epubSelectedChapters,
-      selectedChapterNames: epubSelectedChapterNames,
-    });
-  }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode]);
+    if (mode !== 'reader') {
+      flushProgress();
+      return;
+    }
+    if (!epubBookKey || !epubTitle || !epubSelectedChapters || !epubSelectedChapterNames || words.length === 0) return;
+    pendingProgressRef.current = {
+      bookKey: epubBookKey,
+      data: {
+        wordIndex: currentIndex,
+        totalWords: words.length,
+        title: epubTitle,
+        selectedChapters: epubSelectedChapters,
+        selectedChapterNames: epubSelectedChapterNames,
+      },
+    };
+    if (progressTimerRef.current === null) {
+      const elapsed = Date.now() - lastProgressSaveRef.current;
+      if (elapsed >= 1000) {
+        flushProgress();
+      } else {
+        progressTimerRef.current = window.setTimeout(flushProgress, 1000 - elapsed);
+      }
+    }
+  }, [currentIndex, epubBookKey, words.length, epubTitle, epubSelectedChapters, epubSelectedChapterNames, mode, flushProgress]);
+
+  // Flush latest progress on unmount and on pagehide (tab close/navigation).
+  useEffect(() => {
+    const handlePageHide = () => flushProgress();
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      flushProgress();
+    };
+  }, [flushProgress]);
 
   // Handle text submission from InputArea
-  const handleTextSubmit = (
-    submittedText: string,
-    savedIndex: number | undefined,
-    bookKey: string | null,
-    title: string | null,
-    selectedChapters: number[] | null,
-    selectedChapterNames: string[] | null,
-    images: EpubImage[],
-    blockFormatting: CSSProperties[] | null,
-    visualBlocks: VisualBlock[] | null,
-    blockStyleRanges: BlockStyleRange[] | null,
-    wordStyles: CSSProperties[] | null,
-    fontFaceCSS: string | null
-  ) => {
+  const handleTextSubmit = (payload: TextSubmitPayload) => {
+    const {
+      text: submittedText,
+      savedIndex,
+      bookKey,
+      title,
+      selectedChapters,
+      selectedChapterNames,
+      images,
+      blockFormatting,
+      visualBlocks,
+      blockStyleRanges,
+      wordStyles,
+      fontFaceCSS,
+    } = payload;
     const parsedWords = parseTextToWords(submittedText);
     if (parsedWords.length > 0) {
       setWords(parsedWords);
@@ -176,16 +221,28 @@ function App() {
       // Ctrl+F / Cmd+F — open search (even in input fields)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        if (mode === 'reader') setSearchOpen(true);
+        if (mode === 'reader' && !confirmClose) setSearchOpen(true);
         return;
       }
 
-      // Escape closes search if open
-      if (e.key === 'Escape' && searchOpen) {
-        setSearchOpen(false);
-        return;
+      // Escape — priority: close search first, then dismiss the close-confirm
+      // popup, otherwise prompt before leaving the book.
+      if (e.key === 'Escape') {
+        if (searchOpen) {
+          setSearchOpen(false);
+          return;
+        }
+        if (confirmClose) {
+          setConfirmClose(false);
+          return;
+        }
+        if (mode === 'reader') {
+          setConfirmClose(true);
+          return;
+        }
       }
 
+      if (confirmClose) return;
       if (isInput) return;
 
       switch (e.key.toLowerCase()) {
@@ -223,9 +280,6 @@ function App() {
         case 'arrowdown':
           setWpm(prev => Math.max(prev - 10, 50));
           break;
-        case 'escape':
-          if (mode === 'reader') setMode('input');
-          break;
         default:
           break;
       }
@@ -233,7 +287,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, words.length, searchOpen]);
+  }, [mode, words.length, searchOpen, confirmClose]);
 
   const handleProgressChange = (val: number) => {
     const newIndex = Math.floor((val / 100) * (words.length - 1));
@@ -433,6 +487,37 @@ function App() {
           onJumpToWord={handleJumpToWord}
           onClose={() => setSearchOpen(false)}
         />
+      )}
+
+      {/* Close-book confirmation */}
+      {confirmClose && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmClose(false)} />
+          <div className="relative glass-desktop rounded-2xl w-[90vw] max-w-sm shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-200 p-5">
+            <h2 className="text-base font-semibold text-zinc-100">Close this book?</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              You'll return to the editor and lose your current reading position.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmClose(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-zinc-300 border border-white/10 hover:bg-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmClose(false);
+                  setSearchOpen(false);
+                  setMode('input');
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                Close book
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Shortcuts Toast/Hint */}

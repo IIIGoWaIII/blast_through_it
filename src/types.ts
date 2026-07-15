@@ -133,3 +133,18 @@ export interface SearchResult {
   wordIndex: number;
   context: string;
 }
+
+export interface TextSubmitPayload {
+  text: string;
+  savedIndex?: number | undefined;
+  bookKey?: string | null;
+  title?: string | null;
+  selectedChapters?: number[] | null;
+  selectedChapterNames?: string[] | null;
+  images?: EpubImage[];
+  blockFormatting?: CSSProperties[] | null;
+  visualBlocks?: VisualBlock[] | null;
+  blockStyleRanges?: BlockStyleRange[] | null;
+  wordStyles?: CSSProperties[] | null;
+  fontFaceCSS?: string | null;
+}

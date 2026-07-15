@@ -12,30 +12,53 @@ interface SearchPanelProps {
 
 const CONTEXT_CHARS = 60;
 
-function buildCharToWordMap(text: string, words: string[]): number[] {
-  const map: number[] = [];
-  let wordIdx = 0;
+// Normalize text the same way parseTextToWords does, while tracking how each
+// character of the normalized string maps back to the original text. This keeps
+// search indices and the original-text context consistent.
+function buildProcessedMap(text: string): { processed: string; procToOrig: number[] } {
+  const processed: string[] = [];
+  const procToOrig: number[] = [];
 
-  for (let i = 0; i < words.length && wordIdx < words.length; i++) {
-    const word = words[wordIdx];
-    const searchFrom = map.length > 0 ? map[map.length - 1] + 1 : 0;
-    let foundAt = text.indexOf(word, searchFrom);
-    if (foundAt === -1) foundAt = searchFrom;
-
-    for (let c = foundAt; c < foundAt + word.length && c < text.length; c++) {
-      map[c] = wordIdx;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '—') {
+      // em-dash → single space (1:1 length, no offset shift)
+      processed.push(' ');
+      procToOrig.push(i);
+    } else if (ch === '-') {
+      // hyphen → "- " (adds a character, shifting later offsets)
+      processed.push('-', ' ');
+      procToOrig.push(i, i);
+    } else {
+      processed.push(ch);
+      procToOrig.push(i);
     }
-    if (map.length < foundAt) {
-      for (let c = map.length; c < foundAt; c++) {
-        map[c] = wordIdx;
-      }
-    }
-    wordIdx++;
   }
 
-  const lastWord = wordIdx > 0 ? wordIdx - 1 : 0;
-  while (map.length < text.length) {
-    map.push(lastWord);
+  return { processed: processed.join(''), procToOrig };
+}
+
+// Build a per-character map from the normalized text to the word index it
+// belongs to. Characters that belong to no word (spaces, punctuation between
+// words, unfound tokens) inherit the nearest preceding word index.
+function buildCharToWordMap(processed: string, words: string[]): number[] {
+  const map: number[] = new Array(processed.length).fill(-1);
+  let searchFrom = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const found = processed.indexOf(word, searchFrom);
+    const start = found === -1 ? searchFrom : found;
+    for (let c = start; c < start + word.length && c < processed.length; c++) {
+      map[c] = i;
+    }
+    searchFrom = start + word.length;
+  }
+
+  let last = 0;
+  for (let c = 0; c < map.length; c++) {
+    if (map[c] === -1) map[c] = last;
+    else last = map[c];
   }
 
   return map;
@@ -76,17 +99,15 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ isOpen, text, words, onJumpTo
     }
   }, [isOpen]);
 
-  // Build char-to-word index map
-  const charToWord = useMemo(() => buildCharToWordMap(text, words), [text, words]);
+  // Normalize text once and build a char→word index map over the normalized form
+  const { processed, procToOrig } = useMemo(() => buildProcessedMap(text), [text]);
+  const charToWord = useMemo(() => buildCharToWordMap(processed, words), [processed, words]);
 
-  // Search results — searches the raw text for phrase matches
+  // Search results — searches the normalized text for phrase matches, then maps
+  // the match range back into the original text for display/context.
   const results = useMemo<SearchResult[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q || !text) return [];
-
-    const processed = text
-      .replace(/—/g, ' ')
-      .replace(/-/g, '- ');
+    if (!q || !processed) return [];
 
     const lowerText = processed.toLowerCase();
     const matches: SearchResult[] = [];
@@ -98,14 +119,16 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ isOpen, text, words, onJumpTo
 
       const matchEnd = idx + q.length;
       const wordIndex = charToWord[idx] ?? 0;
-      const context = buildContext(text, idx, matchEnd);
+      const origStart = procToOrig[idx];
+      const origEnd = procToOrig[matchEnd - 1] + 1;
+      const context = buildContext(text, origStart, origEnd);
       matches.push({ wordIndex, context });
 
       searchFrom = idx + 1;
     }
 
     return matches;
-  }, [query, text, charToWord]);
+  }, [query, text, processed, procToOrig, charToWord]);
 
   // Clamp for display
   const displayIndex = results.length > 0 ? Math.min(selectedIndex, results.length - 1) : 0;
@@ -126,6 +149,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ isOpen, text, words, onJumpTo
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       onClose();
       return;
     }

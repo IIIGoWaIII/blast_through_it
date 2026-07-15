@@ -1,25 +1,12 @@
-import React, { useState, type ChangeEvent, type CSSProperties } from 'react';
+import React, { useState, type ChangeEvent } from 'react';
 import { Upload, X, BookOpen, CheckSquare, Square, RotateCcw } from 'lucide-react';
 import { loadFileContent, parseEpubChapters, extractEpubContentWithImages } from '../utils/fileLoaders';
 import { shouldSimplify } from '../utils/device';
 import { getBookKey, getProgress } from '../utils/epubProgress';
-import type { EpubData, EpubImage, BlockStyleRange, VisualBlock, EpubProgressData } from '../types';
+import type { EpubData, EpubProgressData, TextSubmitPayload } from '../types';
 
 interface InputAreaProps {
-  onTextSubmit: (
-    text: string,
-    savedIndex: number | undefined,
-    bookKey: string | null,
-    title: string | null,
-    selectedChapters: number[] | null,
-    selectedChapterNames: string[] | null,
-    images: EpubImage[],
-    blockFormatting: CSSProperties[] | null,
-    visualBlocks: VisualBlock[] | null,
-    blockStyleRanges: BlockStyleRange[] | null,
-    wordStyles: CSSProperties[] | null,
-    fontFaceCSS: string | null,
-  ) => void;
+  onTextSubmit: (payload: TextSubmitPayload) => void;
 }
 
 const InputArea: React.FC<InputAreaProps> = ({ onTextSubmit }) => {
@@ -69,15 +56,29 @@ const InputArea: React.FC<InputAreaProps> = ({ onTextSubmit }) => {
     const handleEpubSubmit = async (resumeWordIndex?: number, resumeChapterIndices?: number[]): Promise<void> => {
         if (!epubFile) return;
         const chaptersToUse = resumeChapterIndices || Array.from(selectedChapters);
-        if (chaptersToUse.length === 0) return;
+        const sortedChapters = [...chaptersToUse].sort((a, b) => a - b);
+        if (sortedChapters.length === 0) return;
         setIsExtracting(true);
         try {
-            const selected = chaptersToUse.map(i => epubData!.chapters[i]);
+            const selected = sortedChapters.map(i => epubData!.chapters[i]);
             const { text, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS } = await extractEpubContentWithImages(epubFile, selected);
             const resumeIdx = typeof resumeWordIndex === 'number' ? resumeWordIndex : undefined;
-            const selectedList = chaptersToUse.sort((a, b) => a - b);
+            const selectedList = sortedChapters;
             const selectedNames = selectedList.map(i => epubData!.chapters[i]?.label || `Chapter ${i + 1}`);
-            onTextSubmit(text, resumeIdx, epubBookKey, epubData!.title, selectedList, selectedNames, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, fontFaceCSS);
+            onTextSubmit({
+                text,
+                savedIndex: resumeIdx,
+                bookKey: epubBookKey,
+                title: epubData!.title,
+                selectedChapters: selectedList,
+                selectedChapterNames: selectedNames,
+                images,
+                blockFormatting,
+                visualBlocks,
+                blockStyleRanges,
+                wordStyles,
+                fontFaceCSS,
+            });
         } catch (error) {
             console.error('Error extracting EPUB text:', error);
             alert('Failed to extract text from EPUB.');
@@ -259,7 +260,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onTextSubmit }) => {
                         />
 
                         <button
-                            onClick={() => onTextSubmit(text, undefined, null, null, null, null, [], null, null, null, null, null)}
+                            onClick={() => onTextSubmit({ text })}
                             disabled={!text.trim()}
                             className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:hover:bg-red-600 text-white rounded-xl md:rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
                         >

@@ -27,8 +27,9 @@ interface EpubBook {
  */
 export const extractTextFromPDF = async (file: File): Promise<string> => {
     const pdfjs = await import('pdfjs-dist');
+    const workerUrl = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+    (pdfjs as any).GlobalWorkerOptions.workerSrc = (workerUrl as any).default;
 
     const arrayBuffer = await file.arrayBuffer();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
