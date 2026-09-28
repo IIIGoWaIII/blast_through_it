@@ -4,7 +4,7 @@ import VisualPacerDisplay from './components/VisualPacerDisplay';
 import ControlBar from './components/ControlBar';
 import InputArea from './components/InputArea';
 import SearchPanel from './components/SearchPanel';
-import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime } from './utils/textParser';
+import { parseTextToWords, getPauseForWord, getNewParagraphIndices, getNewLineIndices, calculateReadingTime, formatTime, getImagePauseMultiplier, LINE_CHANGE_RATIO, PARAGRAPH_RATIO } from './utils/textParser';
 import { ChevronLeft, Moon, BookOpen, AlignLeft, Search } from 'lucide-react';
 import { shouldSimplify, isMobile } from './utils/device';
 import { saveProgress } from './utils/epubProgress';
@@ -57,6 +57,13 @@ function App() {
   const animationRef = useRef<number | null>(null);
   const currentLineStartRef = useRef<number>(-1);
   const prevLineStartRef = useRef<number>(-1);
+
+  // VisualPacerDisplay reports the visual line start of the current word
+  // synchronously on commit, so the playback effect below sees the fresh
+  // value when it computes the current word's delay.
+  const handleLineStartChange = useCallback((startIndex: number) => {
+    currentLineStartRef.current = startIndex;
+  }, []);
 
   // Rate-limited EPUB progress persistence: write at most once per second
   // while position advances, and flush the latest payload on exit/unmount/pagehide.
@@ -172,21 +179,15 @@ function App() {
     if (currentIndex >= words.length - 1) return undefined;
 
     const baseDelay = (60 / wpm) * 1000;
-    const hasLineChange = readingMode === 'visualPacer' && currentLineStartRef.current !== -1 && currentLineStartRef.current !== prevLineStartRef.current;
-    const lineChangeDelay = hasLineChange ? baseDelay * 5 : 0;
+    // Pause on the first word of a new visual line: VisualPacerDisplay measures
+    // the current line synchronously in its layout effect, so this ref is
+    // already updated when this effect runs. Guard on prevLineStartRef so the
+    // very first word after a fresh load never gets a line-change pause.
+    const hasLineChange = readingMode === 'visualPacer' && prevLineStartRef.current !== -1 && currentLineStartRef.current !== prevLineStartRef.current;
+    const lineChangeDelay = hasLineChange ? baseDelay * LINE_CHANGE_RATIO : 0;
     prevLineStartRef.current = currentLineStartRef.current;
-    const isImage = words[currentIndex]?.startsWith('¶IMG:');
-    let imageDelay = 0;
-    if (isImage) {
-        const match = words[currentIndex].match(/¶IMG:(\d+)¶/);
-        const imgIdx = match ? parseInt(match[1], 10) : -1;
-        const imgData = epubImages[imgIdx];
-        const layout: EpubImage = typeof imgData === 'object' ? imgData : { src: '', align: '', maxWidth: null, fullWidth: false };
-        // Centered block images are decorative separators — no extra pause
-        // Content images get full 10x pause
-        imageDelay = (layout.align === 'center' && !layout.inline) ? 0 : baseDelay * 9;
-    }
-    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * 3 : 0) + lineChangeDelay + imageDelay;
+    const imageDelay = getImagePauseMultiplier(words[currentIndex], epubImages) * baseDelay;
+    const delay = baseDelay + getPauseForWord(words[currentIndex], wpm) + (paragraphStarts.has(currentIndex) ? baseDelay * PARAGRAPH_RATIO : 0) + lineChangeDelay + imageDelay;
     const start = performance.now();
 
     const tick = (now: number) => {
@@ -305,7 +306,12 @@ function App() {
 
   const [wordsPerLine, setWordsPerLine] = useState<number>(() => isMobile() ? 4 : 10);
 
-  const totalReadingSeconds = calculateReadingTime(words, wpm, lineStarts, wordsPerLine);
+  // Memoized: these O(n) passes (regex per word) must not run on every
+  // animation frame — App re-renders each frame for wordProgress.
+  const totalReadingSeconds = useMemo(
+    () => calculateReadingTime(words, wpm, lineStarts, wordsPerLine, paragraphStarts, epubImages),
+    [words, wpm, lineStarts, wordsPerLine, paragraphStarts, epubImages]
+  );
   const totalTime = formatTime(totalReadingSeconds);
   const effectiveWpm = totalReadingSeconds > 0 ? Math.round(words.length / (totalReadingSeconds / 60)) : wpm;
   const remainingLineStarts = useMemo(() => {
@@ -317,7 +323,19 @@ function App() {
     }
     return adjusted;
   }, [lineStarts, currentIndex]);
-  const remainingTime = formatTime(calculateReadingTime(words.slice(currentIndex), wpm, remainingLineStarts, wordsPerLine));
+  const remainingParagraphStarts = useMemo(() => {
+    const adjusted = new Set<number>();
+    for (const idx of paragraphStarts) {
+      if (idx >= currentIndex) {
+        adjusted.add(idx - currentIndex);
+      }
+    }
+    return adjusted;
+  }, [paragraphStarts, currentIndex]);
+  const remainingTime = useMemo(
+    () => formatTime(calculateReadingTime(words.slice(currentIndex), wpm, remainingLineStarts, wordsPerLine, remainingParagraphStarts, epubImages)),
+    [words, currentIndex, wpm, remainingLineStarts, wordsPerLine, remainingParagraphStarts, epubImages]
+  );
 
   const bgBlur = simplified ? '' : 'blur-[120px]';
   const animClass = simplified ? '' : 'animate-in fade-in zoom-in-95 duration-500';
@@ -431,7 +449,7 @@ function App() {
                 isPlaying={isPlaying}
                 wordProgress={activeWordProgress}
                 wpm={wpm}
-                lineStartRef={currentLineStartRef}
+                onLineStartChange={handleLineStartChange}
                 images={epubImages}
                 blockFormatting={epubBlockFormatting}
                 visualBlocks={epubVisualBlocks}

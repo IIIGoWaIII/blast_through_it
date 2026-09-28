@@ -1,4 +1,4 @@
-import type { WordSplit } from '../types';
+import type { WordSplit, EpubImage } from '../types';
 
 export const parseTextToWords = (text: string): string[] => {
     if (!text) return [];
@@ -21,6 +21,10 @@ const COMMA_RATIO = 1.25;
 const MID_SENTENCE_RATIO = 5;
 const SPECIAL_CHAR_RATIO = 2;
 const ELLIPSIS_RATIO = 4;
+
+export const LINE_CHANGE_RATIO = 5;
+export const PARAGRAPH_RATIO = 3;
+export const IMAGE_PAUSE_RATIO = 9;
 
 export const getPauseForWord = (word: string, wpm: number): number => {
     const baseDelay = (60 / wpm) * 1000;
@@ -60,15 +64,26 @@ export const getPauseForWord = (word: string, wpm: number): number => {
     return ratio * baseDelay;
 };
 
+export const getImagePauseMultiplier = (word: string, images?: EpubImage[] | null): number => {
+    if (!word.startsWith('¶IMG:')) return 0;
+    const match = word.match(/¶IMG:(\d+)¶/);
+    const imgIdx = match ? parseInt(match[1], 10) : -1;
+    const imgData = images?.[imgIdx];
+    const layout: EpubImage = typeof imgData === 'object' ? imgData : { src: '', align: '', maxWidth: null, fullWidth: false };
+    // Centered block images are decorative separators — no extra pause
+    return layout.align === 'center' && !layout.inline ? 0 : IMAGE_PAUSE_RATIO;
+};
+
 export const calculateReadingTime = (
     words: string[],
     wpm: number,
     lineStarts?: Set<number>,
-    wordsPerLine?: number
+    wordsPerLine?: number,
+    paragraphStarts?: Set<number>,
+    images?: EpubImage[] | null
 ): number => {
     if (!words.length || wpm <= 0) return 0;
     const baseDelayPerWord = (60 / wpm) * 1000;
-    const lineChangeRatio = 5;
 
     const visualLineStarts = new Set<number>();
     if (lineStarts && wordsPerLine && wordsPerLine > 0) {
@@ -91,11 +106,13 @@ export const calculateReadingTime = (
     }
 
     const totalMs = words.reduce((sum: number, word: string, i: number) => {
-        const isImage = word.startsWith('¶IMG:');
         let wordDelay = baseDelayPerWord + getPauseForWord(word, wpm);
-        if (isImage) wordDelay += baseDelayPerWord * 9;
+        wordDelay += getImagePauseMultiplier(word, images) * baseDelayPerWord;
         if (visualLineStarts.has(i) && i !== 0) {
-            wordDelay += baseDelayPerWord * lineChangeRatio;
+            wordDelay += baseDelayPerWord * LINE_CHANGE_RATIO;
+        }
+        if (paragraphStarts?.has(i)) {
+            wordDelay += baseDelayPerWord * PARAGRAPH_RATIO;
         }
         return sum + wordDelay;
     }, 0);

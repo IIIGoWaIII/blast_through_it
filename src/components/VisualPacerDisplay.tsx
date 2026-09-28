@@ -11,7 +11,7 @@ interface VisualPacerDisplayProps {
   isPlaying: boolean;
   wordProgress: number;
   wpm: number;
-  lineStartRef: React.RefObject<number>;
+  onLineStartChange?: (startIndex: number) => void;
   images?: EpubImage[];
   blockFormatting?: CSSProperties[] | null;
   visualBlocks?: VisualBlock[] | null;
@@ -86,7 +86,7 @@ const findBlockStyleForWord = (blockStyleRanges: BlockStyleRange[] | null | unde
     blockStyleRanges?.find(range => wordIndex >= range.start && wordIndex <= range.end)?.style || null
 );
 
-const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, lineStartRef, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, onWordsPerLineChange }) => {
+const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIndex, pacerStyle, isPlaying, wordProgress, onLineStartChange, images, blockFormatting, visualBlocks, blockStyleRanges, wordStyles, onWordsPerLineChange }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollAnimationRef = useRef<number | null>(null);
     const previousWindowStartRef = useRef<number | null>(null);
@@ -206,10 +206,7 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
     const bottomSpacerHeight = Math.floor(Math.max(totalWords - renderWindow.end - 1, 0) / ESTIMATED_WORDS_PER_VISUAL_LINE) * measuredLineHeight;
 
     useLayoutEffect(() => {
-        if (pacerStyle !== 'line' || !containerRef.current) {
-            setLineHighlight(null);
-            return undefined;
-        }
+        if (!containerRef.current) return undefined;
 
         let frameId: number | null = null;
 
@@ -222,7 +219,6 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
                 return;
             }
 
-            const containerRect = container.getBoundingClientRect();
             const elRect = getFirstRect(currentEl);
             const currentCenter = elRect.top + (elRect.height / 2);
             const sameLineWordEls: Element[] = (() => {
@@ -237,6 +233,19 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
             const sameLineWords = sameLineWordEls
                 .map((wordEl) => Number((wordEl as HTMLElement).dataset.wordIndex))
                 .filter(Number.isFinite);
+
+            // Track the visual line start in both pacer styles — App's
+            // playback effect uses it to time the line-change pause.
+            if (onLineStartChange && sameLineWords.length > 0) {
+                onLineStartChange(Math.min(...sameLineWords));
+            }
+
+            if (pacerStyle !== 'line' || sameLineWords.length === 0) {
+                setLineHighlight(null);
+                return;
+            }
+
+            const containerRect = container.getBoundingClientRect();
             const sameLineRects = sameLineWordEls.map(getFirstRect);
             const left = Math.min(...sameLineRects.map((rect) => rect.left));
             const right = Math.max(...sameLineRects.map((rect) => rect.right));
@@ -258,10 +267,6 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
                 wordBounds,
             };
 
-            if (lineStartRef) {
-                (lineStartRef as React.MutableRefObject<number>).current = nextHighlight.startIndex;
-            }
-
             setLineHighlight((prev) => {
                 if (
                     prev
@@ -278,12 +283,16 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
             });
         };
 
+        // Measure synchronously on commit: App's playback effect runs right
+        // after and reads lineStartRef to place the line-change pause on the
+        // FIRST word of a new line. Deferring to the next frame made every
+        // line-change pause land one word late.
+        measureCurrentVisualLine();
+
         const scheduleMeasure = () => {
             if (frameId) cancelAnimationFrame(frameId);
             frameId = requestAnimationFrame(measureCurrentVisualLine);
         };
-
-        scheduleMeasure();
 
         const container = containerRef.current;
         let observer: ResizeObserver | null = null;
@@ -299,32 +308,35 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
             if (observer) observer.disconnect();
             else window.removeEventListener('resize', scheduleMeasure);
         };
-    }, [currentIndex, pacerStyle, visibleLines, renderWindow.start, lineStartRef]);
+    }, [currentIndex, pacerStyle, visibleLines, renderWindow.start, topSpacerHeight, onLineStartChange]);
 
-    // Measure actual rendered line heights to replace static ESTIMATED_LINE_HEIGHT_PX.
-    // This adapts to the device's font size, container width, and word wrapping.
+    // Measure the visual row pitch (distance between wrapped rows) to size the
+    // spacer estimates. The pitch only depends on font metrics, so it stays
+    // stable across render-window shifts — unlike an average of source-line
+    // heights, which swings with paragraph-length mix and used to resize the
+    // top spacer by thousands of pixels right after a shift, yanking the
+    // scroll position. Measured synchronously so spacer heights are final in
+    // the same commit as the window shift.
     useLayoutEffect(() => {
-        if (!containerRef.current) return;
-        const frameId = requestAnimationFrame(() => {
-            const lineEls = containerRef.current?.querySelectorAll('[data-line-index]');
-            if (!lineEls || lineEls.length === 0) return;
+        const container = containerRef.current;
+        if (!container) return;
+        const lineEls = container.querySelectorAll('[data-line-index]');
 
-            let totalHeight = 0;
-            let count = 0;
-            lineEls.forEach((el) => {
-                totalHeight += (el as HTMLElement).offsetHeight;
-                count++;
-            });
-
-            if (count > 0) {
-                const nextLineHeight = Math.round(totalHeight / count);
-                setMeasuredLineHeight((prev) => (
-                    Math.abs(prev - nextLineHeight) > 0.5 ? nextLineHeight : prev
-                ));
+        for (const lineEl of lineEls) {
+            const wordEls = Array.from(lineEl.querySelectorAll<HTMLElement>('[data-word-index]'))
+                .filter((el) => !el.querySelector('img'));
+            if (wordEls.length < 2) continue;
+            const firstRect = getFirstRect(wordEls[0]);
+            for (let i = 1; i < wordEls.length; i++) {
+                const pitch = getFirstRect(wordEls[i]).top - firstRect.top;
+                if (pitch > 8 && pitch < 120) {
+                    const next = Math.round(pitch);
+                    setMeasuredLineHeight((prev) => (Math.abs(prev - next) > 0.5 ? next : prev));
+                    return;
+                }
+                if (pitch >= 120) break;
             }
-        });
-
-        return () => cancelAnimationFrame(frameId);
+        }
     }, [renderWindow.start, renderWindow.end]);
 
     // Measure actual words per visual line from rendered DOM and report to parent.
@@ -411,15 +423,16 @@ const VisualPacerDisplay: React.FC<VisualPacerDisplayProps> = ({ text, currentIn
         const windowChanged = previousWindowStartRef.current !== renderWindow.start;
         previousWindowStartRef.current = renderWindow.start;
 
-        // Anchor-based correction: when the window shifts, the top spacer height changes,
-        // which shifts all content vertically. Compensate by adjusting scrollTop by the
-        // exact spacer delta so the current word stays at the same screen position.
-        if (windowChanged) {
-            const spacerDelta = topSpacerHeight - prevTopSpacerRef.current;
-            if (Math.abs(spacerDelta) > 0.5) {
-                cancelScrollAnimation(scrollAnimationRef);
-                container.scrollTop += spacerDelta;
-            }
+        // Anchor-based correction: whenever the top spacer changes height, all
+        // content below it shifts vertically. Compensate by the exact spacer
+        // delta so the current word stays at the same screen position — this
+        // covers both render-window shifts and measured-line-height updates.
+        // When the window also shifted, real content above was swapped too, so
+        // the threshold snap below re-anchors the word.
+        const spacerDelta = topSpacerHeight - prevTopSpacerRef.current;
+        if (Math.abs(spacerDelta) > 0.5) {
+            cancelScrollAnimation(scrollAnimationRef);
+            container.scrollTop += spacerDelta;
         }
         prevTopSpacerRef.current = topSpacerHeight;
 
